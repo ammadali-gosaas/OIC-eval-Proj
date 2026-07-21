@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BOM Validation and Anomaly Detection</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 12px 28px rgba(15,23,42,.07); }
+  .pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 0.25rem 0.75rem; font-size: 0.875rem; font-weight: 700; letter-spacing: 0.025em; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  .active { background: #0f172a; color: #fff; }
+  .tab { border-color: #0f172a; background: #f8fafc; color: #0f172a; }
+  
+  /* Custom Drawer Animation */
+  .drawer-slide {
+      transform: translateX(100%);
+      animation: drawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes drawerSlideIn {
+      to { transform: translateX(0); }
+  }
+
+  /* Fixed Toast Animation - Prevents Layout Shifts */
+  @keyframes fadeSlideIn {
+      0% { opacity: 0; transform: translateY(-10px); }
+      100% { opacity: 1; transform: translateY(0); }
+  }
+  .toast-overlay {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      animation: fadeSlideIn 0.3s ease-out forwards;
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans text-base min-h-screen"><div id="app" class="min-h-screen"></div>
+<script>
+const ROLES={
+  'Administrator':{run:true,logs:true,review:true,ai:true,note:'Import/run validation, view logs, view BOM results, review findings, request explanations.'},
+  'Business Reviewer':{run:false,logs:false,review:true,ai:true,note:'View BOM results, review findings, change status, request Advisory AI explanations.'}
+};
+const TABLES={
+  BOMS:['bom_id','bill_sequence_id','organization_code','item_number','structure_name','description','effectivity_control','source_updated_at','import_batch_id','imported_at','health_score'],
+  BOM_COMPONENTS:['bom_component_id','bom_id','component_sequence_id','parent_item_number','component_item_number','component_item_class','quantity','uom_code','item_sequence_number','operation_sequence','item_status','effectivity_start','effectivity_end','bom_level','component_path','anomaly_min_quantity','anomaly_max_quantity','imported_at'],
+  VALIDATION_RUNS:['run_id','bom_id','run_kind','trigger_type','status','source_mode','idempotency_key','correlation_id','requested_by','started_at','completed_at','input_count','finding_count','health_score','error_code','error_message'],
+  VALIDATION_FINDINGS:['finding_id','run_id','bom_component_id','finding_key','rule_code','rule_name','severity','issue_status','actual_value','expected_value','evidence_json','review_comment','reviewed_by','reviewed_at','status_history_json','ai_status','ai_explanation','ai_suggested_action','ai_provider','ai_generated_at','created_at']
+};
+const RULES=[
+ ['FR-008','Missing UOM','CRITICAL','UOM is null, empty, or whitespace.','Required UOM must be present.'],
+ ['FR-009','Invalid Quantity','HIGH','Quantity is null, zero, or negative.','Quantity must be positive.'],
+ ['FR-010','Exact Duplicate','WARNING','Duplicate normalized parent/component/operation/effectivity relationship.','Same parent, component, op sequence including null, and effectivity dates including null.'],
+ ['FR-011','Obsolete Component','HIGH','Component status matches configured obsolete status while parent BOM is active or released.','Configured obsolete status value.'],
+ ['FR-012','Invalid Effectivity','HIGH','End date earlier than start date.','End must be on or after start.'],
+ ['FR-013','Circular Reference','CRITICAL','A path returns to an item already present in the path.','Complete cycle path shown as evidence.'],
+ ['FR-014','Quantity Anomaly','WARNING','Positive quantity violates configured lower or upper threshold.','Configured threshold by component or item class.']
+].map(x=>({code:x[0],name:x[1],severity:x[2],description:x[3],threshold:x[4],enabled:true}));
+const DB={boms:[
+ {bom_id:1001,bill_sequence_id:1001,organization_code:'M1',item_number:'BIKE-100',structure_name:'PRIMARY',description:'Demo bicycle',effectivity_control:'Date',source_updated_at:'2026-07-15T00:00:00Z',import_batch_id:'IMP-20260715-001',imported_at:'2026-07-15T10:18:00Z',health_score:50,item_class:'Mechanical Parts',status_label:'Risky',components:[
+  {bom_component_id:1,bom_id:1001,component_sequence_id:10,parent_item_number:'BIKE-100',component_item_number:'WHEEL-20',component_item_class:'Screws & Fasteners',quantity:2,uom_code:'EA',item_sequence_number:10,operation_sequence:null,item_status:'Active',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:1,component_path:'BIKE-100/WHEEL-20',anomaly_min_quantity:1,anomaly_max_quantity:2,imported_at:'2026-07-15T10:18:00Z'},
+  {bom_component_id:2,bom_id:1001,component_sequence_id:11,parent_item_number:'BIKE-100',component_item_number:'FRAME-01',component_item_class:'Electronic Components',quantity:1,uom_code:'EA',item_sequence_number:20,operation_sequence:10,item_status:'Released',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:1,component_path:'BIKE-100/FRAME-01',anomaly_min_quantity:1,anomaly_max_quantity:1,imported_at:'2026-07-15T10:18:00Z'},
+  {bom_component_id:3,bom_id:1001,component_sequence_id:12,parent_item_number:'FRAME-01',component_item_number:'BRACKET-7',component_item_class:'Screws & Fasteners',quantity:null,uom_code:'EA',item_sequence_number:30,operation_sequence:20,item_status:'Active',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:2,component_path:'BIKE-100/FRAME-01/BRACKET-7',anomaly_min_quantity:1,anomaly_max_quantity:4,imported_at:'2026-07-15T10:18:00Z'},
+  {bom_component_id:4,bom_id:1001,component_sequence_id:13,parent_item_number:'FRAME-01',component_item_number:'SEAT-01',component_item_class:'Screws & Fasteners',quantity:5,uom_code:'EA',item_sequence_number:40,operation_sequence:21,item_status:'Active',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:2,component_path:'BIKE-100/FRAME-01/SEAT-01',anomaly_min_quantity:1,anomaly_max_quantity:3,imported_at:'2026-07-15T10:18:00Z'},
+  {bom_component_id:5,bom_id:1001,component_sequence_id:14,parent_item_number:'SEAT-01',component_item_number:'FOAM-01',component_item_class:'Screws & Fasteners',quantity:1,uom_code:null,item_sequence_number:50,operation_sequence:22,item_status:'Active',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:3,component_path:'BIKE-100/FRAME-01/SEAT-01/FOAM-01',anomaly_min_quantity:1,anomaly_max_quantity:2,imported_at:'2026-07-15T10:18:00Z'},
+  {bom_component_id:6,bom_id:1001,component_sequence_id:15,parent_item_number:'BIKE-100',component_item_number:'CHAIN-01',component_item_class:'Screws & Fasteners',quantity:1,uom_code:'EA',item_sequence_number:60,operation_sequence:null,item_status:'Obsolete',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:1,component_path:'BIKE-100/CHAIN-01',anomaly_min_quantity:1,anomaly_max_quantity:2,imported_at:'2026-07-15T10:18:00Z'},
+  {bom_component_id:7,bom_id:1001,component_sequence_id:16,parent_item_number:'BIKE-100',component_item_number:'BRAKE-SET',component_item_class:'Screws & Fasteners',quantity:2,uom_code:'EA',item_sequence_number:70,operation_sequence:40,item_status:'Active',effectivity_start:'2026-07-20T00:00:00Z',effectivity_end:'2026-07-18T00:00:00Z',bom_level:1,component_path:'BIKE-100/BRAKE-SET',anomaly_min_quantity:1,anomaly_max_quantity:2,imported_at:'2026-07-15T10:18:00Z'}],
+  runs:[{run_id:5001,bom_id:1001,run_kind:'IMPORT',trigger_type:'OIC',status:'COMPLETED',source_mode:'LIVE',idempotency_key:'key-1001-live',correlation_id:'c5a09d72-8138-4a82-9730-c208b11b2df6',requested_by:'OIC service',started_at:'2026-07-15T10:10:00Z',completed_at:'2026-07-15T10:18:30Z',input_count:1,finding_count:0,health_score:null,error_code:'',error_message:''},{run_id:5002,bom_id:1001,run_kind:'VALIDATION',trigger_type:'ON_DEMAND',status:'COMPLETED',source_mode:null,idempotency_key:null,correlation_id:'b7d5b6f0-49b6-4f9a-8d1e-3b4a5f0f9cb8',requested_by:'Administrator',started_at:'2026-07-15T11:02:00Z',completed_at:'2026-07-15T11:03:11Z',input_count:7,finding_count:6,health_score:50,error_code:'',error_message:''}],
+  findings:[]},
+ {bom_id:1002,bill_sequence_id:1002,organization_code:'M1',item_number:'BIKE-200',structure_name:'PRIMARY',description:'Current clean BOM after earlier issue review',effectivity_control:'Date',source_updated_at:'2026-07-15T12:00:00Z',import_batch_id:'IMP-20260715-002',imported_at:'2026-07-15T12:06:00Z',health_score:100,item_class:'Mechanical Parts',status_label:'Healthy',components:[{bom_component_id:21,bom_id:1002,component_sequence_id:210,parent_item_number:'BIKE-200',component_item_number:'WHEEL-20',component_item_class:'Screws & Fasteners',quantity:2,uom_code:'EA',item_sequence_number:10,operation_sequence:null,item_status:'Active',effectivity_start:'2026-07-15T00:00:00Z',effectivity_end:null,bom_level:1,component_path:'BIKE-200/WHEEL-20',anomaly_min_quantity:1,anomaly_max_quantity:2,imported_at:'2026-07-15T12:06:00Z'}],runs:[{run_id:5101,bom_id:1002,run_kind:'VALIDATION',trigger_type:'DAILY',status:'COMPLETED',source_mode:null,idempotency_key:null,correlation_id:'a0f04b0f-14bf-4d0c-94a4-e7d89f7b4b13',requested_by:'Scheduler',started_at:'2026-07-16T07:00:00Z',completed_at:'2026-07-16T07:00:10Z',input_count:1,finding_count:0,health_score:100,error_code:'',error_message:''}],findings:[]},
+ {bom_id:1003,bill_sequence_id:1003,organization_code:'M2',item_number:'BIKE-ALT',structure_name:'PRIMARY',description:'Circular reference acceptance fixture',effectivity_control:'Date',source_updated_at:'2026-07-14T09:20:00Z',import_batch_id:'IMP-20260714-004',imported_at:'2026-07-14T09:26:00Z',health_score:75,item_class:'Mechanical Parts',status_label:'Risky',components:[{bom_component_id:31,bom_id:1003,component_sequence_id:310,parent_item_number:'BIKE-ALT',component_item_number:'FRAME-ALT-01',component_item_class:'Electronic Components',quantity:1,uom_code:'EA',item_sequence_number:10,operation_sequence:null,item_status:'Released',effectivity_start:'2026-07-13T00:00:00Z',effectivity_end:null,bom_level:1,component_path:'BIKE-ALT/FRAME-ALT-01',anomaly_min_quantity:1,anomaly_max_quantity:1,imported_at:'2026-07-14T09:26:00Z'},{bom_component_id:32,bom_id:1003,component_sequence_id:320,parent_item_number:'FRAME-ALT-01',component_item_number:'SUB-01',component_item_class:'Electronic Components',quantity:1,uom_code:'EA',item_sequence_number:20,operation_sequence:null,item_status:'Released',effectivity_start:'2026-07-13T00:00:00Z',effectivity_end:null,bom_level:2,component_path:'BIKE-ALT/FRAME-ALT-01/SUB-01',anomaly_min_quantity:1,anomaly_max_quantity:1,imported_at:'2026-07-14T09:26:00Z'},{bom_component_id:33,bom_id:1003,component_sequence_id:330,parent_item_number:'SUB-01',component_item_number:'BIKE-ALT',component_item_class:'Mechanical Parts',quantity:1,uom_code:'EA',item_sequence_number:30,operation_sequence:null,item_status:'Released',effectivity_start:'2026-07-13T00:00:00Z',effectivity_end:null,bom_level:3,component_path:'BIKE-ALT/FRAME-ALT-01/SUB-01/BIKE-ALT',anomaly_min_quantity:1,anomaly_max_quantity:1,imported_at:'2026-07-14T09:26:00Z'}],runs:[{run_id:5201,bom_id:1003,run_kind:'VALIDATION',trigger_type:'ON_DEMAND',status:'COMPLETED',source_mode:null,idempotency_key:null,correlation_id:'0c9bba6f-b77b-40a2-8783-77a8b7c8c5ad',requested_by:'Administrator',started_at:'2026-07-14T09:31:00Z',completed_at:'2026-07-14T09:31:41Z',input_count:3,finding_count:1,health_score:75,error_code:'',error_message:''}],findings:[]}
+],logs:[{correlation_id:'c5a09d72-8138-4a82-9730-c208b11b2df6',stage:'Import package',time:'2026-07-15T10:18:30Z',source_mode:'LIVE',status:'COMPLETED',details:'One Oracle-shaped page imported; header upserted and components replaced in one transaction.'},{correlation_id:'b7d5b6f0-49b6-4f9a-8d1e-3b4a5f0f9cb8',stage:'Validation package',time:'2026-07-15T11:03:11Z',source_mode:'N/A',status:'COMPLETED',details:'Deterministic checks, anomaly check, findings, and health score were persisted.'},{correlation_id:'f2410c4d-f196-4a51-942b-76b93fd88f95',stage:'AI connector',time:'2026-07-15T11:14:52Z',source_mode:'N/A',status:'FAILED',details:'Advisory AI failed; rule results and review remained usable.'}]};
+DB.boms[0].findings=[
+ {finding_id:7001,run_id:5002,bom_component_id:5,finding_key:'1001:FR-008:5',rule_code:'FR-008',rule_name:'Missing UOM',severity:'CRITICAL',issue_status:'OPEN',actual_value:'NULL',expected_value:'Non-empty UOM',evidence_json:{bom:'BIKE-100',parent:'SEAT-01',component:'FOAM-01',missingField:'PrimaryUomCode'},review_comment:'',reviewed_by:'',reviewed_at:null,status_history_json:[],ai_status:'NOT_REQUESTED',ai_explanation:'',ai_suggested_action:'',ai_provider:'Mock connector',ai_generated_at:null,created_at:'2026-07-15T11:03:00Z'},
+ {finding_id:7002,run_id:5002,bom_component_id:3,finding_key:'1001:FR-009:3',rule_code:'FR-009',rule_name:'Invalid Quantity',severity:'HIGH',issue_status:'OPEN',actual_value:'NULL',expected_value:'Positive quantity',evidence_json:{bom:'BIKE-100',parent:'FRAME-01',component:'BRACKET-7',receivedQuantity:null},review_comment:'',reviewed_by:'',reviewed_at:null,status_history_json:[],ai_status:'NOT_REQUESTED',ai_explanation:'',ai_suggested_action:'',ai_provider:'Mock connector',ai_generated_at:null,created_at:'2026-07-15T11:03:00Z'},
+ {finding_id:7003,run_id:5002,bom_component_id:null,finding_key:'1001:FR-010:DUP',rule_code:'FR-010',rule_name:'Exact Duplicate',severity:'WARNING',issue_status:'REVIEWED',actual_value:'Duplicate relationship',expected_value:'Unique normalized relationship',evidence_json:{bom:'BIKE-100',duplicateRows:['CHAIN-01 row A','CHAIN-01 row B']},review_comment:'Checked duplicate relationship before PLM correction.',reviewed_by:'Sarah Khan (Business Reviewer)',reviewed_at:'2026-07-15T11:10:00Z',status_history_json:[{oldStatus:'OPEN',newStatus:'REVIEWED',user:'Sarah Khan (Business Reviewer)',comment:'Checked duplicate relationship before PLM correction.',timestamp:'2026-07-15T11:10:00Z'}],ai_status:'COMPLETED',ai_explanation:'This duplicate may cause downstream planning or costing to count the same relationship more than once.',ai_suggested_action:'Confirm whether the duplicate is intentional; otherwise remove or correct the duplicate source relationship.',ai_provider:'Mock connector',ai_generated_at:'2026-07-15T11:11:00Z',created_at:'2026-07-15T11:03:00Z'},
+ {finding_id:7004,run_id:5002,bom_component_id:6,finding_key:'1001:FR-011:6',rule_code:'FR-011',rule_name:'Obsolete Component',severity:'HIGH',issue_status:'OPEN',actual_value:'Obsolete',expected_value:'Allowed lifecycle status',evidence_json:{bom:'BIKE-100',parentStatus:'Released',component:'CHAIN-01',componentStatus:'Obsolete'},review_comment:'',reviewed_by:'',reviewed_at:null,status_history_json:[],ai_status:'NOT_REQUESTED',ai_explanation:'',ai_suggested_action:'',ai_provider:'Mock connector',ai_generated_at:null,created_at:'2026-07-15T11:03:00Z'},
+ {finding_id:7005,run_id:5002,bom_component_id:7,finding_key:'1001:FR-012:7',rule_code:'FR-012',rule_name:'Invalid Effectivity',severity:'HIGH',issue_status:'IGNORED',actual_value:'End before start',expected_value:'End date on or after start date',evidence_json:{bom:'BIKE-100',component:'BRAKE-SET',start:'2026-07-20T00:00:00Z',end:'2026-07-18T00:00:00Z'},review_comment:'Supplier correction pending; kept visible for history.',reviewed_by:'Sarah Khan (Business Reviewer)',reviewed_at:'2026-07-15T11:14:00Z',status_history_json:[{oldStatus:'OPEN',newStatus:'IGNORED',user:'Sarah Khan (Business Reviewer)',comment:'Supplier correction pending; kept visible for history.',timestamp:'2026-07-15T11:14:00Z'}],ai_status:'FAILED',ai_explanation:'',ai_suggested_action:'',ai_provider:'Mock connector',ai_generated_at:null,created_at:'2026-07-15T11:03:00Z'},
+ {finding_id:7006,run_id:5002,bom_component_id:4,finding_key:'1001:FR-014:4',rule_code:'FR-014',rule_name:'Quantity Anomaly',severity:'WARNING',issue_status:'OPEN',actual_value:'5',expected_value:'1 to 3',evidence_json:{bom:'BIKE-100',component:'SEAT-01',observedQuantity:5,threshold:'1 to 3',configurationSource:'Purchased Part threshold'},review_comment:'',reviewed_by:'',reviewed_at:null,status_history_json:[],ai_status:'NOT_REQUESTED',ai_explanation:'',ai_suggested_action:'',ai_provider:'Mock connector',ai_generated_at:null,created_at:'2026-07-15T11:03:00Z'}];
+DB.boms[2].findings=[{finding_id:7201,run_id:5201,bom_component_id:null,finding_key:'1003:FR-013:CYCLE',rule_code:'FR-013',rule_name:'Circular Reference',severity:'CRITICAL',issue_status:'OPEN',actual_value:'BIKE-ALT/FRAME-ALT-01/SUB-01/BIKE-ALT',expected_value:'No repeated item in path',evidence_json:{cyclePath:'BIKE-ALT > FRAME-ALT-01 > SUB-01 > BIKE-ALT'},review_comment:'',reviewed_by:'',reviewed_at:null,status_history_json:[],ai_status:'NOT_REQUESTED',ai_explanation:'',ai_suggested_action:'',ai_provider:'Mock connector',ai_generated_at:null,created_at:'2026-07-14T09:31:41Z'}];
+
+// Ensure initial health scores are perfectly calculated and synced on load
+function w(x){return {CRITICAL:25,HIGH:10,WARNING:5,INFO:0}[x]||0}
+function openFinds(x){return x.findings.filter(y=>['OPEN','REVIEWED'].includes(y.issue_status))}
+function calc(x){return Math.max(0,100-openFinds(x).reduce((s,y)=>s+w(y.severity),0))}
+DB.boms.forEach(b => { b.health_score = calc(b); b.status_label = b.health_score === 100 ? 'Healthy' : 'Risky'; });
+
+let S={role:'Administrator',view:'Dashboard',bom:1001,finding:7001,run:5002,detail:'Overview',fs:'All',fv:'All',fr:'All',toast:'',bomSearch:'',bomFilter:'All',bomSeverityFilter:'All',bomClassFilter:'All',showAllClasses:false,modal:null,expandedRuns:{},drawerComp:null,selectedRunDetail:null};
+const $=s=>document.querySelector(s), b=()=>DB.boms.find(x=>x.bom_id===S.bom)||DB.boms[0], allF=()=>DB.boms.flatMap(x=>x.findings.map(f=>({...f,bom_id:x.bom_id,item_number:x.item_number}))), allR=()=>DB.boms.flatMap(x=>x.runs.map(r=>({...r,item_number:x.item_number}))).sort((a,b)=>new Date(b.started_at)-new Date(a.started_at));
+const f=()=>allF().find(x=>x.finding_id===S.finding)||allF()[0], r=()=>allR().find(x=>x.run_id===S.run)||allR()[0];
+
+function fmt(v){return v===null||v===undefined||v===''?'—':v} function dt(v){return v?new Date(v).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):'—'}
+function st(x){return {OPEN:'bg-amber-100 text-amber-800',REVIEWED:'bg-sky-100 text-sky-800',IGNORED:'bg-slate-200 text-slate-700',COMPLETED:'bg-emerald-100 text-emerald-800',FAILED:'bg-rose-100 text-rose-800',RUNNING:'bg-blue-100 text-blue-800'}[x]||'bg-slate-100 text-slate-700'}
+function sv(x){return {CRITICAL:'bg-rose-100 text-rose-800',HIGH:'bg-orange-100 text-orange-800',WARNING:'bg-amber-100 text-amber-800',INFO:'bg-slate-100 text-slate-700'}[x]||'bg-slate-100 text-slate-700'}
+function toast(t){S.toast=t;setTimeout(()=>{S.toast='';render()},3000)} function go(v){S.view=v;render()} function selectBom(id){S.bom=id;let x=b();S.finding=x.findings[0]?.finding_id||S.finding;S.run=x.runs[0]?.run_id||S.run;S.view='BOM Detail';render()} function selectFinding(id){let x=DB.boms.find(z=>z.findings.some(y=>y.finding_id===id)); if(x){S.bom=x.bom_id;S.finding=id;S.run=x.runs[0]?.run_id||S.run} S.view='Finding Review';render()} function selectRun(id){let x=DB.boms.find(z=>z.runs.some(y=>y.run_id===id)); if(x){S.bom=x.bom_id;S.run=id} S.view='Run History';render()}
+function changeStatus(){let x=f(), ns=$('#newStatus').value, c=$('#comment').value.trim(); if(!ROLES[S.role].review)return toast('This role cannot change finding status.'); if(ns==='IGNORED'&&!c)return toast('Ignored requires a non-empty comment.'); let old=x.issue_status; x.issue_status=ns; x.review_comment=c||x.review_comment; let userName=S.role==='Administrator'?'Rohit Mehta':'Sarah Khan'; x.reviewed_by=userName+' ('+S.role+')'; x.reviewed_at=new Date().toISOString(); x.status_history_json.push({oldStatus:old,newStatus:ns,user:x.reviewed_by,comment:c,timestamp:x.reviewed_at}); b().health_score=calc(b()); b().status_label=b().health_score===100?'Healthy':'Risky'; toast(`Finding #${x.finding_id} changed to ${ns}`); render()}
+function runVal(){if(!ROLES[S.role].run)return toast('Only Administrator can run validation in the TDD endpoint contract.'); let x=b(), id=Math.max(...allR().map(q=>q.run_id))+1; x.runs.unshift({run_id:id,bom_id:x.bom_id,run_kind:'VALIDATION',trigger_type:'ON_DEMAND',status:'COMPLETED',source_mode:null,idempotency_key:null,correlation_id:crypto.randomUUID(),requested_by:S.role,started_at:new Date().toISOString(),completed_at:new Date().toISOString(),input_count:x.components.length,finding_count:x.findings.length,health_score:x.health_score,error_code:'',error_message:''});S.run=id;S.view='Run History';toast('On-demand validation run created.');render()}
+function ai(){if(!ROLES[S.role].ai)return toast('This role cannot request Advisory AI.'); let x=f(); x.ai_status='COMPLETED'; x.ai_generated_at=new Date().toISOString(); x.ai_explanation=`Advisory AI: ${x.rule_name} should be reviewed using the stored evidence only.`; x.ai_suggested_action='Confirm engineering intent, then correct source data or update controlled configuration if appropriate. Do not write AI output to Fusion PLM.'; toast('Advisory AI explanation stored.');render()}
+
+function getModalHTML() {
+    if (!S.modal) return '';
+    let content = '';
+    
+    // Sidebar Drawer for Component Issues
+    if (S.modal === 'drawer') {
+        let comp = b().components.find(c => c.bom_component_id === S.drawerComp);
+        let compFinds = b().findings.filter(f => f.bom_component_id === S.drawerComp && f.issue_status !== 'RESOLVED');
+        if(compFinds.length === 0 && comp.item_status === 'Obsolete') {
+            compFinds = [{ rule_name: 'Obsolete Component', rule_code: 'FR-011', severity: 'HIGH', actual_value: 'Obsolete', expected_value: 'Allowed lifecycle status' }];
+        }
+        
+        return `
+        <div class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="S.modal=null;render()"></div>
+        <div class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-slate-50 shadow-2xl p-6 overflow-y-auto drawer-slide border-l border-slate-200">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Component Analysis</div>
+                    <h3 class="text-2xl font-black text-slate-900">${comp.component_item_number}</h3>
+                </div>
+                <button onclick="S.modal=null;render()" class="w-10 h-10 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300 transition-colors flex items-center justify-center">✕</button>
+            </div>
+            
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><span class="text-slate-500 font-bold uppercase text-xs">Quantity</span><br><span class="font-bold text-lg text-slate-900">${fmt(comp.quantity)}</span></div>
+                    <div><span class="text-slate-500 font-bold uppercase text-xs">UOM</span><br><span class="font-bold text-lg text-slate-900">${fmt(comp.uom_code)}</span></div>
+                    <div class="col-span-2"><span class="text-slate-500 font-bold uppercase text-xs">Item Status</span><br><span class="pill mt-1 ${comp.item_status==='Obsolete'?'bg-rose-100 text-rose-800':'bg-slate-100 text-slate-700'}">${fmt(comp.item_status)}</span></div>
+                </div>
+            </div>
+
+            <h4 class="text-lg font-bold text-slate-900 mb-3 border-b border-slate-200 pb-2">Active Rule Violations</h4>
+            <div class="space-y-4">
+                ${compFinds.length > 0 ? compFinds.map(f => `
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-start mb-2">
+                            <b class="text-lg text-slate-900">${f.rule_name}</b>
+                            <span class="pill shadow-sm text-xs ${sv(f.severity)}">${f.severity}</span>
+                        </div>
+                        <div class="text-sm font-bold text-slate-500 mb-3">${f.rule_code}</div>
+                        <div class="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100"><b class="text-slate-900">${fmt(f.actual_value)}</b> → expected <b>${fmt(f.expected_value)}</b></div>
+                        ${f.finding_id ? `<button onclick="S.modal=null; S.finding=${f.finding_id}; go('Finding Review')" class="mt-4 w-full py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 text-sm">Review Finding Details</button>` : ''}
+                    </div>
+                `).join('') : '<div class="text-slate-500 font-medium text-sm">No explicit un-resolved findings mapped.</div>'}
+            </div>
+        </div>`;
+    }
+
+    let wrapperStart = `<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity"><div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-lg">`;
+    let wrapperEnd = `</div></div>`;
+
+    if (S.modal === 'schedule') {
+        content = `
+            <h3 class="text-2xl font-black mb-4 text-slate-900">Run Scheduled Validation</h3>
+            <div class="space-y-5 mt-6">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Select Run Time</label>
+                    <input type="time" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-3">Interval Configuration</label>
+                    <div class="flex gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <label class="flex items-center gap-3 cursor-pointer text-base font-bold text-slate-800">
+                            <input type="radio" name="interval" checked class="w-5 h-5 accent-slate-900"> Daily
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer text-base font-bold text-slate-800">
+                            <input type="radio" name="interval" class="w-5 h-5 accent-slate-900"> Weekly
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+                <button onclick="S.modal=null;render()" class="px-6 py-3 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm">Close</button>
+                <button onclick="S.modal=null;toast('Validation Scheduled');render()" class="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-sm">Save Schedule</button>
+            </div>
+        `;
+    } else if (S.modal === 'addRule') {
+        content = `
+            <h3 class="text-2xl font-black mb-2 text-slate-900">Add New Rule</h3>
+            <p class="text-slate-500 mb-6 text-sm">Create a custom deterministic validation check.</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Rule Name</label>
+                    <input type="text" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none" placeholder="e.g. Missing Material Code">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
+                    <textarea class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none" rows="3" placeholder="Rule explanation..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Severity Designation</label>
+                    <select class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                        <option>Critical</option>
+                        <option>High</option>
+                        <option>Warning</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+                <button onclick="S.modal=null;render()" class="px-6 py-3 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm">Cancel</button>
+                <button onclick="S.modal=null;toast('New Rule Saved successfully');render()" class="px-6 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors text-sm">Save Rule</button>
+            </div>
+        `;
+    } else if (S.modal === 'runDetail') {
+        let run = allR().find(r => r.run_id === S.selectedRunDetail);
+        content = `
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-2xl font-black text-slate-900">Run Metadata #${run.run_id}</h3>
+                <span class="pill shadow-sm text-sm ${st(run.status)}">${run.status}</span>
+            </div>
+            <p class="text-slate-500 mb-6 font-bold text-sm">${dt(run.started_at)}</p>
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Trigger Type</div><div class="font-black text-lg mt-1 text-slate-900">${run.trigger_type}</div></div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Source Mode</div><div class="font-black text-lg mt-1 text-slate-900">${run.source_mode || 'Manual'}</div></div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Requested By</div><div class="font-black text-lg mt-1 text-slate-900">${run.requested_by}</div></div>
+                <div class="bg-rose-50 p-4 rounded-xl border border-rose-200 shadow-sm"><div class="text-xs font-bold text-rose-600 uppercase tracking-wider">Findings Flagged</div><div class="font-black text-lg mt-1 text-rose-800">${run.finding_count} Errors</div></div>
+            </div>
+            <button onclick="S.modal=null;render()" class="w-full px-5 py-4 rounded-xl bg-slate-900 text-white font-bold text-base hover:bg-slate-800 transition-colors shadow-md">Close View</button>
+        `;
+    }
+
+    return content ? wrapperStart + content + wrapperEnd : '';
+}
+
+function shell(c) {
+    return `
+    <div class="flex flex-col min-h-screen">
+        <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+            <div class="p-4 flex justify-between gap-3 flex-wrap items-center">
+                <div>
+                    <div class="text-xs uppercase tracking-[.2em] font-bold text-slate-500">Oracle-pattern MVP</div>
+                    <h1 class="font-black text-xl text-slate-900">BOM Validation and Anomaly Detection</h1>
+                </div>
+                <div class="flex gap-3">
+                    ${Object.keys(ROLES).map(x=>`<button onclick="S.role='${x}';render()" class="px-4 py-2 rounded-xl border font-bold text-sm transition-all ${S.role===x?'active border-slate-900 shadow-md ring-2 ring-slate-900 ring-offset-1':'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}">${x}</button>`).join('')}
+                </div>
+            </div>
+        </header>
+        <div class="flex flex-1 flex-col lg:flex-row items-stretch h-full">
+            <aside class="lg:w-72 bg-slate-950 text-white p-5 flex flex-col shadow-inner flex-shrink-0 min-h-[calc(100vh-73px)]">
+                <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5 mb-8 shadow-md">
+                    <div class="text-xs uppercase font-bold tracking-wider text-slate-400">Current Role</div>
+                    <div class="font-black mt-1 text-lg text-white">${S.role}</div>
+                    <p class="text-sm text-slate-300 mt-2 leading-relaxed">${ROLES[S.role].note}</p>
+                </div>
+                <nav class="space-y-2 flex-1">
+                    ${['Dashboard','BOM Detail','Finding Review','Run History','Logs','Rules'].map(v=>`<button onclick="go('${v}')" class="w-full text-left px-5 py-3 rounded-xl text-sm font-bold transition-all ${S.view===v?'bg-white text-slate-950 shadow-lg scale-[1.02]':'text-slate-300 hover:bg-slate-800 hover:text-white'}">${v}</button>`).join('')}
+                </nav>
+                <div class="mt-8 pt-6 border-t border-slate-800">
+                    <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-4 text-xs text-slate-400 leading-relaxed shadow-inner">
+                        <b class="text-slate-200 block mb-1 uppercase tracking-wider">Boundaries</b>
+                        Latest BOM structure only. Runs/findings/history retained. No Fusion PLM write-back. AI is Advisory AI.
+                    </div>
+                </div>
+            </aside>
+            <main class="flex-1 p-5 md:p-8 space-y-8 bg-slate-50 text-base text-slate-800 overflow-y-auto">
+                ${S.toast?`<div class="toast-overlay"><div class="bg-slate-900 text-white font-bold rounded-xl px-6 py-4 shadow-2xl text-sm border border-slate-700">${S.toast}</div></div>`:''}
+                ${c}
+            </main>
+        </div>
+        ${getModalHTML()}
+    </div>`;
+}
+
+function dashboard(){
+    let af=allF();
+    
+    // Dynamic Class Health Calculation[cite: 1]
+    let classStats = {};
+    DB.boms.forEach(b => {
+        let isRisky = b.health_score < 100;
+        let classesInBom = new Set(b.components.map(c => c.component_item_class).filter(Boolean));
+        classesInBom.forEach(cls => {
+            if(!classStats[cls]) classStats[cls] = { total: 0, risky: 0 };
+            classStats[cls].total++;
+            if(isRisky) classStats[cls].risky++;
+        });
+    });
+    let classArr = Object.keys(classStats).map(k => {
+        let s = classStats[k];
+        let healthPct = Math.round(((s.total - s.risky) / s.total) * 100);
+        let barColor = healthPct >= 90 ? 'bg-emerald-500' : (healthPct >= 70 ? 'bg-amber-400' : 'bg-rose-500');
+        let textColor = healthPct >= 90 ? 'text-emerald-600' : (healthPct >= 70 ? 'text-amber-500' : 'text-rose-600');
+        let riskLabel = healthPct >= 90 ? 'Healthy' : (healthPct >= 70 ? 'Warning' : 'Critical Risk');
+        return { name: k, total: s.total, risky: s.risky, healthPct: healthPct, barColor, textColor, riskLabel };
+    }).sort((a,b) => b.risky - a.risky || a.name.localeCompare(b.name));
+
+    let visibleClasses = S.showAllClasses ? classArr : classArr.slice(0, 3);
+    
+    let boms = DB.boms.slice();
+    if(S.bomSearch) boms = boms.filter(x => x.item_number.toLowerCase().includes(S.bomSearch) || x.description.toLowerCase().includes(S.bomSearch));
+    if(S.bomFilter && S.bomFilter !== 'All') boms = boms.filter(x => x.status_label === S.bomFilter);
+    if(S.bomSeverityFilter && S.bomSeverityFilter !== 'All') boms = boms.filter(x => x.findings.some(f => f.severity === S.bomSeverityFilter));
+    if(S.bomClassFilter && S.bomClassFilter !== 'All') boms = boms.filter(x => x.components.some(c => c.component_item_class === S.bomClassFilter));
+    boms.sort((a,b)=>a.health_score-b.health_score);
+
+    let filtersActive = S.bomSeverityFilter !== 'All' || S.bomClassFilter !== 'All';
+    let filterTags = '';
+    if(S.bomSeverityFilter !== 'All') filterTags += `<span class="inline-flex items-center gap-1.5 bg-white text-slate-700 px-3 py-1 rounded border border-slate-200 shadow-sm text-xs font-bold">Severity: ${S.bomSeverityFilter} <button onclick="S.bomSeverityFilter='All';render()" class="hover:text-rose-600 ml-1">✕</button></span>`;
+    if(S.bomClassFilter !== 'All') filterTags += `<span class="inline-flex items-center gap-1.5 bg-white text-slate-700 px-3 py-1 rounded border border-slate-200 shadow-sm text-xs font-bold">Class: ${S.bomClassFilter} <button onclick="S.bomClassFilter='All';render()" class="hover:text-rose-600 ml-1">✕</button></span>`;
+    if (filtersActive) filterTags += `<button onclick="S.bomSeverityFilter='All'; S.bomClassFilter='All'; render()" class="text-[10px] font-bold text-slate-500 hover:text-slate-800 transition-colors uppercase tracking-wider ml-1 underline underline-offset-2">Clear All</button>`;
+
+    return shell(`<section class="space-y-6">
+        <div class="flex justify-between gap-3 flex-wrap items-end mb-2">
+            <div><h2 class="text-3xl font-black text-slate-900 tracking-tight">Landing Dashboard</h2>
+            <p class="text-slate-600 mt-1 text-base font-medium">Core leadership metrics, risky BOMs, and open issues.</p></div>
+        </div>
+        
+        <!-- Clean 2-Row Executive Grid: Row 1 (Top Banner) -->
+        <div class="grid lg:grid-cols-3 gap-6 mb-6 items-stretch">
+            <!-- Issue Count by Severity -->
+            <div class="card p-6 border-slate-200 shadow-sm flex flex-col h-full bg-white">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                    <h3 class="font-black text-lg text-slate-900">Issue Count by Severity</h3>
+                    <p class="text-xs text-slate-500 italic bg-slate-50 px-2 py-1 rounded border border-slate-100 hidden sm:block">Click row to filter table</p>
+                </div>
+                <div class="space-y-1 flex-1 flex flex-col justify-center">
+                ${['CRITICAL','HIGH','WARNING','INFO'].map(s=>`
+                    <div onclick="S.bomSeverityFilter='${s}';render()" class="flex justify-between items-center py-2.5 px-3 cursor-pointer hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-200 hover:shadow-sm ${S.bomSeverityFilter===s?'bg-slate-50 border-slate-300 shadow-inner ring-1 ring-slate-200':''}">
+                        <span class="pill shadow-sm text-xs px-3 py-1 ${sv(s)}">${s}</span>
+                        <b class="text-xl text-slate-800">${af.filter(x=>x.severity===s).length}</b>
+                    </div>
+                `).join('')}
+                </div>
+            </div>
+            
+            <!-- BOM Health by Item Class -->
+            <div class="card p-6 border-slate-200 shadow-sm flex flex-col h-full bg-white">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                    <h3 class="font-black text-lg text-slate-900">BOM Health by Item Class</h3>
+                    <button onclick="S.showAllClasses = !S.showAllClasses; render()" class="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">${S.showAllClasses ? 'Show Top 3' : 'View All Classes'}</button>
+                </div>
+                <div class="flex-1 flex flex-col justify-start space-y-4 overflow-y-auto max-h-[350px] pr-2">
+                    ${visibleClasses.map(cls => `
+                        <div onclick="S.bomClassFilter='${cls.name}'; render()" class="bg-slate-50 p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5 ${S.bomClassFilter === cls.name ? 'border-slate-400 ring-2 ring-slate-200 bg-white shadow-sm' : 'border-slate-100'}">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="font-bold text-slate-900">${cls.name}</span>
+                                <span class="font-black ${cls.textColor}">${cls.healthPct}% ${cls.riskLabel}</span>
+                            </div>
+                            <div class="w-full bg-slate-200 rounded-full h-2.5 mb-2 overflow-hidden shadow-inner">
+                                <div class="${cls.barColor} h-2.5 rounded-full transition-all" style="width: ${cls.healthPct}%"></div>
+                            </div>
+                            <div class="text-xs text-slate-600 font-bold">${cls.risky} Risky / ${cls.total} Total BOMs</div>
+                        </div>
+                    `).join('')}
+                    ${classArr.length === 0 ? '<div class="text-sm font-medium text-slate-500 text-center py-4">No item classes found in BOMs.</div>' : ''}
+                </div>
+            </div>
+
+            <!-- Open Issues to Review -->
+            <div onclick="S.fs='OPEN'; go('Finding Review')" class="card p-6 bg-slate-900 text-white flex flex-col justify-center items-center text-center shadow-lg border-slate-800 relative overflow-hidden cursor-pointer hover:bg-slate-800 transition-all group h-full">
+                <div class="absolute -right-8 -top-8 w-32 h-32 bg-slate-800 rounded-full opacity-50 group-hover:scale-110 transition-transform duration-500"></div>
+                <div class="absolute -left-8 -bottom-8 w-24 h-24 bg-slate-800 rounded-full opacity-30 group-hover:scale-125 transition-transform duration-700"></div>
+                
+                <h3 class="font-black text-xl mb-2 text-slate-100 relative z-10 flex items-center gap-2">
+                    Open Issues to Review 
+                    <svg class="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </h3>
+                <div class="text-7xl font-black text-amber-400 relative z-10 leading-none drop-shadow-lg">${af.filter(x=>['OPEN','REVIEWED'].includes(x.issue_status)).length}</div>
+            </div>
+        </div>
+
+        <!-- Clean 2-Row Executive Grid: Row 2 (Bottom Workspace - Full Width) -->
+        <div class="card overflow-hidden shadow-sm border-slate-200 bg-white flex flex-col w-full">
+            <div class="p-6 border-b bg-slate-50/80 flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <div class="flex flex-wrap items-center gap-4 mb-2">
+                        <h3 class="font-black text-xl text-slate-900">Top Risky BOMs & Total Health</h3>
+                        ${filterTags ? `<div class="flex items-center gap-2">${filterTags}</div>` : ''}
+                    </div>
+                    <p class="text-sm text-slate-500 font-medium">Ordered by highest risk / lowest health score.</p>
+                </div>
+                <div class="flex gap-3">
+                    <input type="text" placeholder="Search BOMs..." onkeyup="S.bomSearch=this.value.toLowerCase();render()" value="${S.bomSearch}" class="px-4 py-2 border border-slate-300 rounded-xl bg-white text-sm font-bold text-slate-700 focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all shadow-sm">
+                    <select onchange="S.bomFilter=this.value;render()" class="px-4 py-2 border border-slate-300 rounded-xl bg-white text-sm font-bold text-slate-700 focus:ring-2 focus:ring-slate-900 focus:outline-none transition-all cursor-pointer shadow-sm">
+                        <option value="All" ${S.bomFilter==='All'?'selected':''}>All Statuses</option>
+                        <option value="Risky" ${S.bomFilter==='Risky'?'selected':''}>Risky</option>
+                        <option value="Healthy" ${S.bomFilter==='Healthy'?'selected':''}>Healthy</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-x-auto flex-1">
+                <table class="min-w-full text-base text-left">
+                    <thead class="bg-white border-b border-slate-200">
+                        <tr>
+                            <th class="p-5 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">BOM</th>
+                            <th class="p-5 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">Org</th>
+                            <th class="p-5 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">Total Health Score</th>
+                            <th class="p-5 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">Open Issues</th>
+                            <th class="p-5 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        ${boms.map(x=>`<tr onclick="selectBom(${x.bom_id})" class="row cursor-pointer transition-colors hover:bg-slate-50">
+                            <td class="p-5">
+                                <div class="font-black text-slate-900 text-lg">${x.item_number}</div>
+                                <div class="font-bold text-xs text-slate-500 mt-1">${x.description}</div>
+                            </td>
+                            <td class="p-5 text-slate-800 font-bold">${x.organization_code}</td>
+                            <td class="p-5"><span class="pill shadow-sm text-sm px-3 py-1 ${x.health_score===100?'bg-emerald-100 text-emerald-800':'bg-orange-100 text-orange-800'}">${x.health_score}/100</span></td>
+                            <td class="p-5 text-slate-900 font-black text-xl">${openFinds(x).length}</td>
+                            <td class="p-5"><span class="pill shadow-sm text-xs px-2 ${x.status_label==='Healthy'?'bg-emerald-100 text-emerald-800':'bg-rose-100 text-rose-800'}">${x.status_label}</span></td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+                ${boms.length === 0 ? `<div class="p-12 text-center text-slate-500 text-lg font-bold bg-slate-50/50">No BOMs found matching current filters.</div>` : ''}
+            </div>
+        </div>
+    </section>`);
+}
+
+function detail(){let x=b(), tabs=['Overview','Components','Findings','Score','History']; return shell(`<section class="space-y-6"><div class="card p-6 flex justify-between items-center gap-4 flex-wrap border-slate-200 shadow-sm bg-white"><div><div class="text-xs uppercase font-bold text-slate-500 tracking-wider">BOM Detail Exploration</div><h2 class="text-3xl font-black text-slate-900 mt-1">${x.item_number}</h2><p class="text-slate-600 font-bold mt-1 text-base">${x.organization_code} · ${x.structure_name} · ${x.description}</p></div><div><span class="pill shadow-sm text-base px-5 py-2 border border-slate-200 ${x.health_score===100?'bg-emerald-100 text-emerald-800 border-emerald-200':'bg-orange-100 text-orange-800 border-orange-200'}">Calculated Health: ${x.health_score}/100</span></div></div><div class="flex flex-wrap gap-2 bg-slate-100 p-2 rounded-xl border border-slate-200">${tabs.map(t=>`<button onclick="S.detail='${t}';render()" class="px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${S.detail===t?'bg-white text-slate-900 shadow border border-slate-200':'text-slate-600 hover:bg-slate-200 hover:text-slate-900'}">${t}</button>`).join('')}</div>${tab(x)}</section>`)}
+function tab(x){if(S.detail==='Overview')return `<div class="grid xl:grid-cols-3 gap-6"><div class="card p-6 xl:col-span-2 shadow-sm border-slate-200 bg-white"><h3 class="font-black text-xl mb-5 text-slate-900">BOM Header Fields</h3><div class="grid md:grid-cols-2 gap-5">${TABLES.BOMS.map(k=>`<div class="rounded-xl bg-slate-50 border border-slate-100 p-4 shadow-sm"><div class="text-xs uppercase font-bold text-slate-500 mb-1 tracking-wider">${k.replace(/_/g, ' ')}</div><div class="font-black text-slate-800 text-base break-words">${k.includes('_at')||k==='source_updated_at'?dt(x[k]):fmt(x[k])}</div></div>`).join('')}</div></div><div class="card p-6 shadow-sm border-slate-200 bg-white flex flex-col"><h3 class="font-black text-xl mb-5 text-slate-900">Actions</h3><div class="space-y-4 flex-1"><div class="grid grid-cols-2 gap-3"><button onclick="runVal()" class="w-full px-4 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm transition-all hover:bg-slate-800 shadow-md ${ROLES[S.role].run?'':'opacity-40 cursor-not-allowed'}">Run validation</button><button onclick="${ROLES[S.role].run?`toast('PLM data refresh requested through OIC.');render()`:`toast('Only Administrator can refresh PLM data.');render()`}" class="w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm transition-all hover:bg-emerald-700 shadow-md ${ROLES[S.role].run?'':'opacity-40 cursor-not-allowed'}">Refresh</button></div><button onclick="go('Logs')" class="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-800 font-bold text-sm transition-all hover:bg-slate-50 hover:border-slate-300 shadow-sm ${ROLES[S.role].logs?'':'opacity-40 cursor-not-allowed'}">View integration logs</button></div><div class="mt-6 pt-6 border-t border-slate-100"><button onclick="ai()" class="w-full px-4 py-3 rounded-xl bg-violet-100 text-violet-900 font-bold text-sm transition-all hover:bg-violet-200 shadow-sm border border-violet-200 flex justify-center items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Request Advisory AI</button></div></div></div>`; if(S.detail==='Components')return components(x); if(S.detail==='Findings')return findings(x.findings.map(q=>({...q,item_number:x.item_number,bom_id:x.bom_id}))); if(S.detail==='Score')return score(x); return hist(x)}
+
+function components(x) {
+    let hasError = (c) => c.item_status === 'Obsolete' || x.findings.some(f => f.bom_component_id === c.bom_component_id && f.issue_status !== 'RESOLVED');
+    return `<div class="card overflow-hidden shadow-sm border-slate-200 bg-white">
+        <div class="p-6 border-b border-slate-200 bg-slate-50/80">
+            <h3 class="font-black text-xl text-slate-900">Multi-level BOM Tree View</h3>
+            <p class="text-sm text-slate-600 font-medium mt-1">Hierarchical breakdown of components. Click on highlighted rows to view exact rule violations.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-base text-left border-collapse">
+                <thead class="bg-white border-b border-slate-200 text-slate-500">
+                    <tr>
+                        <th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Hierarchy</th>
+                        <th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Component Item</th>
+                        <th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Item Class</th>
+                        <th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Qty</th>
+                        <th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">UOM</th>
+                        <th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    ${x.components.sort((a,b)=>a.component_path.localeCompare(b.component_path)).map(c=>{
+                        let err = hasError(c);
+                        let rowClass = err ? 'bg-rose-50/70 hover:bg-rose-100 transition-colors cursor-pointer border-l-4 border-rose-500' : 'hover:bg-slate-50 transition-colors even:bg-slate-50/50 border-l-4 border-transparent';
+                        let onclickStr = err ? `onclick="S.drawerComp=${c.bom_component_id}; S.modal='drawer'; render()"` : '';
+                        let badge = err ? `<span class="ml-3 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-rose-200 text-rose-800 uppercase tracking-widest shadow-sm border border-rose-300">⚠️ Issue Detected</span>` : '';
+                        
+                        let padding = c.bom_level === 1 ? 1.25 : (c.bom_level - 1) * 2 + 1.25;
+                        let treePrefix = c.bom_level > 1 ? `<span class="text-slate-300 font-mono font-bold mr-2 whitespace-pre">${'&nbsp;&nbsp;'.repeat(c.bom_level - 2)}└─</span>` : '';
+
+                        return `<tr class="${rowClass}" ${onclickStr}>
+                            <td class="p-4 whitespace-nowrap" style="padding-left: ${padding}rem;">
+                                ${treePrefix}
+                                <span class="font-mono text-xs font-bold bg-white px-2 py-1 rounded text-slate-600 border border-slate-200 shadow-sm">Lvl ${c.bom_level}</span>
+                            </td>
+                            <td class="p-4 font-black text-slate-900 text-base whitespace-nowrap">${c.component_item_number}${badge}</td>
+                            <td class="p-4"><span class="pill bg-white text-slate-700 shadow-sm border border-slate-200 text-xs font-bold px-2.5 py-1">${fmt(c.component_item_class)}</span></td>
+                            <td class="p-4 font-black text-slate-800 text-base">${fmt(c.quantity)}</td>
+                            <td class="p-4 text-slate-700 font-bold text-sm">${fmt(c.uom_code)}</td>
+                            <td class="p-4"><span class="pill shadow-sm text-xs px-2.5 py-1 border ${c.item_status==='Active' || c.item_status==='Released' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-200 text-slate-800 border-slate-300'}">${fmt(c.item_status)}</span></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    </div>`;
+}
+
+function findings(list=allF()){
+    let rows=list; 
+    if(S.fs!=='All')rows=rows.filter(x=>x.issue_status===S.fs); 
+    if(S.fv!=='All')rows=rows.filter(x=>x.severity===S.fv); 
+    if(S.fr!=='All')rows=rows.filter(x=>x.rule_code===S.fr); 
+    
+    return shellOr(`<section class="space-y-6">
+        <div class="card p-5 flex gap-3 flex-wrap border-slate-200 shadow-sm bg-white">
+            <select onchange="S.fs=this.value;render()" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm"><option>All Statuses</option>${['OPEN','REVIEWED','IGNORED'].map(v=>`<option ${S.fs===v?'selected':''}>${v}</option>`).join('')}</select>
+            <select onchange="S.fv=this.value;render()" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm"><option>All Severities</option>${['CRITICAL','HIGH','WARNING','INFO'].map(v=>`<option ${S.fv===v?'selected':''}>${v}</option>`).join('')}</select>
+            <select onchange="S.fr=this.value;render()" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm max-w-sm"><option>All Rules</option>${RULES.map(r=>`<option value="${r.code}" ${S.fr===r.code?'selected':''}>${r.code} · ${r.name}</option>`).join('')}</select>
+            <button onclick="S.fs=S.fv=S.fr='All';render()" class="px-4 py-2 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-700 hover:bg-slate-50 transition-all shadow-sm">Clear Filters</button>
+        </div>
+        <div class="grid xl:grid-cols-3 gap-6 items-start">
+            <div class="xl:col-span-2 space-y-4">
+                ${rows.map(x=>{
+                    let compName = x.evidence_json?.component || x.evidence_json?.parent || x.item_number || b().item_number;
+                    return `<button onclick="selectFinding(${x.finding_id})" class="w-full text-left card p-5 hover:bg-slate-50 transition-all border border-slate-200 shadow-sm ${S.finding===x.finding_id?'ring-2 ring-slate-900 border-transparent shadow-md scale-[1.01]':''}">
+                        <div class="flex justify-between gap-4">
+                            <div>
+                                <div class="flex items-center gap-3 mb-2">
+                                    <b class="text-xl text-slate-900 font-black">${compName}</b>
+                                    <span class="pill shadow-sm text-xs border border-slate-200 bg-white text-slate-700">${x.rule_name}</span>
+                                </div>
+                                <div class="text-xs font-bold text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200">${x.rule_code} · Finding #${x.finding_id}</div>
+                            </div>
+                            <div class="flex flex-col gap-2 items-end">
+                                <span class="pill shadow-sm text-xs px-2 py-1 ${sv(x.severity)}">${x.severity}</span> 
+                                <span class="pill shadow-sm text-xs px-2 py-1 ${st(x.issue_status)}">${x.issue_status}</span>
+                            </div>
+                        </div>
+                        <div class="text-base text-slate-800 font-medium mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner flex items-center gap-3">
+                            <span class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all">${fmt(x.actual_value)}</span> 
+                            <span class="text-slate-400 font-black">→</span> 
+                            <span class="text-slate-500 text-sm">expected</span> 
+                            <span class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all">${fmt(x.expected_value)}</span>
+                        </div>
+                    </button>`
+                }).join('')||'<div class="card p-10 text-center text-slate-500 font-bold text-lg bg-slate-50 border border-slate-200 shadow-inner">No findings match current filters.</div>'}
+            </div>
+            ${review()}
+        </div>
+    </section>`, list===allF());
+}
+function shellOr(c,wrap){return wrap?shell(c):c}
+
+function review(){
+    let x=f();
+    let ev = x.evidence_json || {};
+    
+    let hierarchyHtml = `<div class="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm mb-5 flex flex-wrap items-center gap-2 text-sm">
+        <span class="font-bold text-slate-500 uppercase text-xs tracking-wider mr-2">Location Path:</span>`;
+    
+    if (ev.bom) hierarchyHtml += `<span class="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-sm font-bold text-slate-800">${ev.bom}</span>`;
+    if (ev.parent) hierarchyHtml += `<span class="text-slate-400 font-bold">➔</span> <span class="bg-white px-2.5 py-1 rounded border border-slate-200 shadow-sm font-bold text-slate-800">${ev.parent}</span>`;
+    if (ev.component) hierarchyHtml += `<span class="text-slate-400 font-bold">➔</span> <span class="bg-slate-200 px-2.5 py-1 rounded border border-slate-300 shadow-sm font-black text-slate-900">${ev.component}</span>`;
+    hierarchyHtml += `</div>`;
+    
+    let otherKeys = Object.keys(ev).filter(k => !['bom','parent','component'].includes(k));
+    if(otherKeys.length > 0) {
+        hierarchyHtml += `<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">`;
+        otherKeys.forEach(k => {
+            let lbl = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+            let val = Array.isArray(ev[k]) ? ev[k].join(', ') : ev[k];
+            hierarchyHtml += `<div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm"><span class="text-xs uppercase text-slate-500 font-black tracking-wider block mb-1">${lbl}</span><span class="font-bold text-slate-900 break-words text-sm">${val}</span></div>`;
+        });
+        hierarchyHtml += `</div>`;
+    }
+
+    let compName = x.evidence_json?.component || x.evidence_json?.parent || x.item_number || b().item_number;
+
+    return `<div class="card p-6 h-fit sticky top-24 shadow-lg border-slate-200 bg-white">
+        <div class="text-xs uppercase font-black text-slate-400 tracking-widest mb-1">Selected Review Item</div>
+        <h3 class="font-black text-2xl text-slate-900">${compName}</h3>
+        <div class="mt-3 flex gap-2">
+            <span class="pill shadow-sm text-xs bg-slate-100 border border-slate-200 text-slate-700">${x.rule_name}</span>
+            <span class="pill shadow-sm text-xs px-3 py-1 ${sv(x.severity)} border border-transparent">${x.severity}</span> 
+            <span class="pill shadow-sm text-xs px-3 py-1 ${st(x.issue_status)} border border-transparent">${x.issue_status}</span>
+        </div>
+        
+        <div class="border-t border-slate-100 mt-5 pt-5">
+            <h4 class="font-black text-lg text-slate-900 mb-3 tracking-tight">Finding Location & Details</h4>
+            ${hierarchyHtml}
+            <p class="text-xs mt-4 text-slate-600 font-medium bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm flex gap-2 items-start"><svg class="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span><b class="text-slate-900 font-bold">Review Aid:</b> This validation finding requires human review and is meant as an advisory tool, not direct proof the relationship is technically wrong.</span></p>
+        </div>
+
+        <div class="border-t border-slate-100 mt-6 pt-5">
+            <h4 class="font-black text-lg text-slate-900 mb-3 tracking-tight">AI Explanation & Mitigation</h4>
+            <div class="rounded-xl bg-violet-50 border border-violet-100 p-5 text-sm text-slate-800 shadow-sm leading-relaxed relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-3 opacity-10 pointer-events-none"><svg class="w-16 h-16 text-violet-900" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <span class="pill bg-violet-600 text-white shadow-md px-3 py-1 text-[10px] uppercase tracking-widest font-black">Advisory AI</span>
+                    <span class="text-xs font-bold text-violet-900 bg-violet-200 px-2.5 py-1 rounded-full border border-violet-300">Status: ${fmt(x.ai_status)}</span>
+                </div>
+                <p class="mb-3 relative z-10"><b class="text-violet-900 block mb-1 font-black uppercase text-[10px] tracking-wider">Business Context</b> ${fmt(x.ai_explanation)}</p>
+                <p class="relative z-10"><b class="text-violet-900 block mb-1 font-black uppercase text-[10px] tracking-wider">Suggested Mitigation Action</b> <span class="bg-white px-2 py-1.5 rounded border border-violet-200 inline-block font-medium shadow-sm">${fmt(x.ai_suggested_action)}</span></p>
+            </div>
+            <button onclick="ai()" class="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-bold text-slate-800 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm text-sm flex justify-center items-center gap-2">↻ Generate or Refresh AI Insights</button>
+        </div>
+
+        <div class="border-t border-slate-200 mt-6 pt-5 bg-slate-50 -mx-6 -mb-6 p-6 rounded-b-20px shadow-inner">
+            <b class="text-slate-900 font-black text-lg block mb-3">Update Finding Status</b>
+            <select id="newStatus" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 bg-white text-sm font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm cursor-pointer">
+                <option>OPEN</option><option>REVIEWED</option><option>IGNORED</option>
+            </select>
+            <textarea id="comment" class="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm font-medium" rows="2" placeholder="Required comment if changing status to 'Ignored'..."></textarea>
+            <button onclick="changeStatus()" class="mt-3 w-full rounded-xl bg-slate-900 text-white px-4 py-3 font-black hover:bg-slate-800 transition-colors shadow-md text-base tracking-wide">Save Status Change</button>
+        </div>
+    </div>`
+}
+
+function score(x){let rows=openFinds(x).map(y=>({rule:y.rule_name,severity:y.severity,status:y.issue_status,d:w(y.severity)}));return `<div class="grid xl:grid-cols-3 gap-6"><div class="card p-6 xl:col-span-2 shadow-sm border-slate-200 bg-white"><h3 class="font-black text-2xl text-slate-900 mb-2">Transparent Health Score</h3><p class="text-slate-600 mb-5 text-sm font-medium leading-relaxed border-b border-slate-100 pb-4">Base score starts at 100. Deductions: 25 Critical, 10 High, 5 Warning for 'Open' or 'Reviewed' findings (floor 0). 'Ignored' and 'Resolved' statuses do not impact the active health score.</p><div class="overflow-x-auto"><table class="min-w-full text-sm text-left border-collapse"><thead class="bg-slate-50 border-b border-slate-200 text-slate-500"><tr><th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Violated Rule</th><th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Severity Weight</th><th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Current Status</th><th class="p-4 font-bold uppercase tracking-wider text-xs whitespace-nowrap">Score Deduction</th></tr></thead><tbody class="divide-y divide-slate-100">${rows.map(q=>`<tr class="hover:bg-slate-50 transition-colors"><td class="p-4 font-bold text-slate-900 text-base">${q.rule}</td><td class="p-4"><span class="pill shadow-sm text-xs px-2.5 py-1 ${sv(q.severity)}">${q.severity}</span></td><td class="p-4"><span class="pill shadow-sm text-xs px-2.5 py-1 ${st(q.status)}">${q.status}</span></td><td class="p-4 font-black text-rose-600 text-xl">- ${q.d}</td></tr>`).join('')||'<tr><td class="p-8 text-center text-slate-500 font-bold text-lg bg-slate-50/50" colspan="4">No unresolved active findings currently reduce the BOM health score.</td></tr>'}</tbody></table></div></div><div class="card p-6 shadow-md border-slate-200 bg-slate-900 text-white flex flex-col justify-center items-center text-center relative overflow-hidden"><div class="absolute -right-8 -top-8 w-32 h-32 bg-slate-800 rounded-full opacity-50 pointer-events-none"></div><div class="absolute -left-8 -bottom-8 w-24 h-24 bg-slate-800 rounded-full opacity-50 pointer-events-none"></div><div class="text-xs uppercase font-bold text-slate-400 tracking-widest mb-3 relative z-10">Calculated Final Score</div><div class="text-7xl font-black text-white leading-none mb-2 relative z-10 drop-shadow-lg">${calc(x)}</div></div></div>`}
+
+function hist(x) {
+    let runs = x.runs.slice().sort((a,b)=>new Date(a.started_at)-new Date(b.started_at));
+    runs = runs.map((r, idx) => {
+        let prev = idx > 0 ? runs[idx-1] : null;
+        let diff = prev ? r.finding_count - prev.finding_count : r.finding_count;
+        let diffStr = diff > 0 ? `+${diff}` : (diff < 0 ? `${diff}` : `0`);
+        let diffColor = diff > 0 ? 'text-rose-600 bg-rose-50 border-rose-200' : (diff < 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200');
+        return {...r, diffStr, diffColor};
+    }).reverse();
+
+    let events = x.findings.flatMap(y=>y.status_history_json.map(h=>({...h,finding_id:y.finding_id,rule_name:y.rule_name}))).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+
+    return `<div class="space-y-6">
+        <div class="card p-6 shadow-sm border-slate-200 bg-white">
+            <h3 class="font-black text-2xl text-slate-900 mb-2">Validation Run History & Error Comparison</h3>
+            <p class="text-sm text-slate-500 font-medium mb-5">Click a run card to isolate and inspect that specific historical execution payload.</p>
+            <div class="space-y-4">
+                ${runs.map(q=>`
+                    <div onclick="S.selectedRunDetail=${q.run_id}; S.modal='runDetail'; render();" class="border border-slate-200 rounded-xl p-5 cursor-pointer hover:border-slate-300 hover:shadow-sm transition-all flex justify-between items-center bg-white">
+                        <div>
+                            <div class="flex items-center gap-3 mb-1">
+                                <b class="text-slate-900 font-black text-lg">Run #${q.run_id}</b>
+                                <span class="pill shadow-sm text-[10px] px-2 py-1 uppercase tracking-wider ${st(q.status)}">${q.status}</span>
+                            </div>
+                            <div class="text-sm font-bold text-slate-500 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${dt(q.started_at)} <span class="mx-1 text-slate-300">|</span> <span class="uppercase text-[10px] tracking-wider bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">Source: ${fmt(q.source_mode) || 'Manual'}</span> <span class="mx-1 text-slate-300">|</span> <span class="uppercase text-[10px] tracking-wider bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">Trigger: ${q.trigger_type}</span></div>
+                        </div>
+                        <div class="text-right flex flex-col items-end">
+                            <div class="font-black text-2xl text-slate-800 mb-1">${q.finding_count} <span class="text-sm font-bold text-slate-500 uppercase tracking-widest">Errors</span></div>
+                            <div class="text-xs font-black px-2.5 py-0.5 rounded border shadow-sm ${q.diffColor}">${q.diffStr} since prior</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        <div class="card p-6 shadow-sm border-slate-200 bg-white">
+            <h3 class="font-black text-2xl text-slate-900 mb-5">Complete Finding Status Audit Trail</h3>
+            <div class="space-y-4 border-l-2 border-slate-200 pl-5 ml-3">
+                ${events.map(e=>`
+                    <div class="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                        <div class="absolute -left-[30px] top-6 w-3 h-3 rounded-full bg-slate-300 border-[3px] border-white shadow-sm"></div>
+                        <div class="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
+                            <b class="text-slate-900 font-black text-base">Finding #${e.finding_id} • ${e.rule_name}</b>
+                            <span class="text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg> ${dt(e.timestamp)}</span>
+                        </div>
+                        <div class="text-sm text-slate-700 mt-2 mb-3 bg-slate-50 p-3 rounded-lg border border-slate-100 font-medium">Status transition: <span class="font-bold text-slate-400 mx-1">${e.oldStatus}</span> <span class="text-slate-300">➔</span> <span class="font-black text-slate-900 ml-1 px-2 py-0.5 bg-white rounded shadow-sm border border-slate-200">${e.newStatus}</span></div>
+                        <div class="text-sm font-bold text-slate-500 flex items-center gap-1.5"><svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg> Authorized by: <span class="text-slate-800">${e.user}</span></div>
+                        ${e.comment ? `<div class="text-sm mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg italic text-amber-900 shadow-inner font-medium border-l-4 border-l-amber-400">"${e.comment}"</div>` : ''}
+                    </div>
+                `).join('') || '<div class="text-slate-500 font-bold p-6 text-center text-lg bg-slate-50 border border-slate-200 rounded-xl">No finding status changes recorded in audit history.</div>'}
+            </div>
+        </div>
+    </div>`;
+}
+
+function runHist() {
+    let rows = allR();
+    let displayCols = ['run_kind', 'trigger_type', 'status', 'requested_by', 'started_at'];
+    let displayHeaders = ['Run Type', 'Trigger Type', 'Status', 'Requested By', 'Started At'];
+
+    return shell(`
+        <section class="space-y-6">
+            <div class="flex justify-between flex-wrap">
+                <div>
+                    <h2 class="text-3xl font-black text-slate-900">Run History</h2>
+                    <p class="text-slate-600 mt-1 text-base font-medium">Clean view of import and validation executions across all BOMs.</p>
+                </div>
+            </div>
+            <div class="card overflow-hidden bg-white rounded-2xl shadow-sm border-slate-200">
+                <div class="p-4 border-b bg-slate-50/80 flex justify-between items-center">
+                    <h3 class="font-black text-lg text-slate-900">Execution Log</h3>
+                    <div class="text-xs font-bold text-slate-500 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Click row to reveal raw Technical Metadata payload
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm text-left border-collapse">
+                        <thead class="bg-white border-b border-slate-200">
+                            <tr>
+                                <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">BOM Assembly</th>
+                                ${displayHeaders.map(h => `<th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">${h}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            ${rows.map(q => `
+                                <tr onclick="S.expandedRuns=S.expandedRuns||{}; S.expandedRuns[${q.run_id}]=!S.expandedRuns[${q.run_id}]; render()" class="cursor-pointer hover:bg-slate-50 transition-colors group">
+                                    <td class="p-4 font-black text-slate-900 text-base whitespace-nowrap group-hover:text-blue-700 transition-colors">${q.item_number}</td>
+                                    ${displayCols.map(k => {
+                                        let val = q[k];
+                                        if(k === 'status') return `<td class="p-4"><span class="pill shadow-sm text-xs px-2.5 py-1 ${st(val)}">${val}</span></td>`;
+                                        if(k.includes('_at')) val = dt(val);
+                                        return `<td class="p-4 font-bold text-slate-700 whitespace-nowrap">${fmt(val)}</td>`;
+                                    }).join('')}
+                                </tr>
+                                ${(S.expandedRuns||{})[q.run_id] ? `
+                                <tr class="bg-slate-50 border-b-2 border-slate-200 shadow-inner">
+                                    <td colspan="6" class="p-5">
+                                        <div class="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                                            <h4 class="font-black text-xs uppercase text-slate-500 mb-3 tracking-widest border-b border-slate-100 pb-2">Technical Execution Metadata</h4>
+                                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono text-slate-600">
+                                                <div><b class="text-slate-900 font-sans block mb-0.5">Run ID:</b> ${q.run_id}</div>
+                                                <div><b class="text-slate-900 font-sans block mb-0.5">Internal BOM ID:</b> ${q.bom_id}</div>
+                                                <div><b class="text-slate-900 font-sans block mb-0.5">Source Mode:</b> ${fmt(q.source_mode)}</div>
+                                                <div><b class="text-slate-900 font-sans block mb-0.5">Input Count:</b> ${q.input_count}</div>
+                                                <div class="col-span-2 md:col-span-4 mt-1"><b class="text-slate-900 font-sans block mb-0.5">Idempotency Key:</b> <span class="bg-slate-50 px-2 py-1 border rounded block mt-0.5 break-all">${fmt(q.idempotency_key)}</span></div>
+                                                <div class="col-span-2 md:col-span-4"><b class="text-slate-900 font-sans block mb-0.5">Correlation Trace ID:</b> <span class="bg-slate-50 px-2 py-1 border rounded block mt-0.5 break-all">${q.correlation_id}</span></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>` : ''}
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    `);
+}
+
+function logs() {
+    if (!ROLES[S.role].logs) return shell(`<div class="card p-10 border-slate-200 shadow-sm text-center bg-white"><h2 class="text-3xl font-black text-slate-900 mb-3">Integration Logs Restricted</h2><p class="text-slate-600 text-lg font-medium">Administrator active role capability is required to view raw redacted import, validation, and AI diagnostic payloads.</p></div>`);
+    return shell(`
+        <section class="space-y-6">
+            <div>
+                <h2 class="text-3xl font-black text-slate-900 mb-1">Integration Logs</h2>
+                <p class="text-slate-600 text-base font-medium">Redacted backend operational diagnostics traceable by exact correlation ID.</p>
+            </div>
+            <div class="card overflow-auto bg-white rounded-2xl shadow-sm border-slate-200">
+                <table class="min-w-full text-sm text-left border-collapse">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs whitespace-nowrap">Correlation ID Trace</th>
+                            <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs">Processing Stage</th>
+                            <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs">Source Mode</th>
+                            <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs">Terminal Status</th>
+                            <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs">Timestamp</th>
+                            <th class="p-4 font-bold text-slate-500 uppercase tracking-wider text-xs w-full">Diagnostic Details</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        ${DB.logs.map(q => `<tr class="border-b border-slate-100">
+                            <td class="p-4 font-mono text-xs text-slate-500 bg-slate-50 border-r border-slate-100">${q.correlation_id}</td>
+                            <td class="p-4 font-black text-slate-900 text-base whitespace-nowrap">${q.stage}</td>
+                            <td class="p-4 text-slate-700 font-bold">${q.source_mode}</td>
+                            <td class="p-4"><span class="pill shadow-sm px-2.5 py-1 text-xs ${st(q.status)}">${q.status}</span></td>
+                            <td class="p-4 text-slate-700 font-bold whitespace-nowrap">${dt(q.time)}</td>
+                            <td class="p-4 text-slate-700 leading-relaxed font-medium">${q.details}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    `);
+}
+
+function rules(){
+    let adminBtns = S.role === 'Administrator' ? `
+        ${ROLES[S.role].run ? `<button class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-sm transition-all hover:bg-emerald-700 shadow-sm" onclick="S.modal='schedule';render()">Run Scheduled Validation</button>` : ''}
+        <button onclick="S.modal='addRule';render()" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-black text-sm transition-all hover:bg-slate-800 shadow-sm">+ Add New Logic Rule</button>
+    ` : `<div class="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-lg font-bold text-xs shadow-sm">View-only mode: Administration functions restricted.</div>`;
+
+    return shell(`<section><div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+        <div><h2 class="text-3xl font-black mb-1 text-slate-900">Readable Rule Engine Metadata</h2>
+        <p class="text-slate-600 font-medium text-base">Transparent dictionary of active deterministic thresholds and validation logic mappings.</p></div>
+        <div class="flex gap-3 items-center">
+            ${adminBtns}
+        </div>
+    </div>
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+        ${RULES.map(r=>`<div class="card p-6 shadow-sm border-slate-200 bg-white flex flex-col h-full"><div class="flex justify-between gap-3 items-start mb-3"><div><b class="text-xl text-slate-900 font-black">${r.name}</b><div class="text-xs font-black text-slate-500 mt-1.5 tracking-widest bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200 shadow-sm">${r.code}</div></div><span class="pill shadow-sm px-2.5 py-1 text-xs ${sv(r.severity)} border border-transparent">${r.severity}</span></div><p class="text-base text-slate-700 mt-2 mb-5 leading-relaxed flex-1">${r.description}</p><div class="rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm text-slate-800 font-medium shadow-inner"><b class="text-slate-900 font-black block mb-1 uppercase text-[10px] tracking-wider">Engine Threshold/Configuration:</b> ${r.threshold}</div></div>`).join('')}
+    </div></section>`);
+}
+
+function render(){
+    let V={Dashboard:dashboard,'BOM Detail':detail,'Finding Review':()=>shell(`<section><h2 class="text-3xl font-black mb-1 text-slate-900">Finding Review Workflow</h2><p class="text-slate-600 font-medium mb-6 text-base">Human-in-the-loop status transition desk. Deterministic evidence is separated clearly from Advisory AI layers.</p>${findings(allF())}</section>`),'Run History':runHist,Logs:logs,Rules:rules}; 
+    document.getElementById('app').innerHTML=V[S.view]()
+} 
+render();
+</script></body></html>
