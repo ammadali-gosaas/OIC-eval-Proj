@@ -226,8 +226,20 @@ SELECT JSON_OBJECT(
            RETURNING CLOB
        ) bom_detail_json
   FROM boms b
- WHERE b.bom_id = :bom_id
+ WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms/:bom_id',
+        p_method             => 'GET',
+        p_name               => 'bom_id',
+        p_bind_variable_name => 'bom_id',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'IN',
+        p_comments           => 'BOM ID from URI path'
     );
 
     ORDS.DEFINE_TEMPLATE(
@@ -260,9 +272,21 @@ SELECT run_id,
        error_code,
        error_message
   FROM bom_runs
- WHERE bom_id = :bom_id
+ WHERE bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
  ORDER BY started_at DESC, run_id DESC
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms/:bom_id/runs',
+        p_method             => 'GET',
+        p_name               => 'bom_id',
+        p_bind_variable_name => 'bom_id',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'IN',
+        p_comments           => 'BOM ID from URI path'
     );
 
     ORDS.DEFINE_TEMPLATE(
@@ -276,13 +300,18 @@ SELECT run_id,
         p_pattern     => 'validation-runs',
         p_method      => 'POST',
         p_source_type => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
         p_source      => q'[
 DECLARE
-    v_bom_id       NUMBER := TO_NUMBER(:bom_id);
+    v_bom_id       NUMBER := :bom_id;
     v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
     v_run_id       NUMBER;
     v_err_msg      VARCHAR2(4000);
 BEGIN
+    IF v_bom_id IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20020, 'JSON payload must include numeric bom_id.');
+    END IF;
+
     BOM_VALIDATION_PKG.run_full_validation(v_bom_id, v_requested_by);
 
     SELECT MAX(run_id)
@@ -293,29 +322,24 @@ BEGIN
        AND requested_by = v_requested_by;
 
     :status_code := 201;
-    OWA_UTIL.mime_header('application/json', FALSE);
-    HTP.P('Cache-Control: no-cache');
-    OWA_UTIL.http_header_close;
-    HTP.P(JSON_OBJECT(
-        'message' VALUE 'Validation completed',
-        'bomId' VALUE v_bom_id,
-        'runId' VALUE v_run_id,
-        'requestedBy' VALUE v_requested_by
-        RETURNING CLOB
-    ));
 EXCEPTION
     WHEN OTHERS THEN
         v_err_msg := SUBSTR(SQLERRM, 1, 4000);
         :status_code := 400;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT(
-            'error' VALUE 'VALIDATION_RUN_FAILED',
-            'message' VALUE SUBSTR(v_err_msg, 1, 1000)
-            RETURNING CLOB
-        ));
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'validation-runs',
+        p_method             => 'POST',
+        p_name               => 'status_code',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'RESPONSE',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT',
+        p_comments           => 'HTTP response status code'
     );
 
     ORDS.DEFINE_TEMPLATE(
@@ -350,7 +374,7 @@ SELECT br.run_id,
        br.error_message
   FROM bom_runs br
   JOIN boms b ON b.bom_id = br.bom_id
- WHERE br.run_id = :run_id
+ WHERE br.run_id = TO_NUMBER(:run_id DEFAULT NULL ON CONVERSION ERROR)
         ]'
     );
 
@@ -365,9 +389,10 @@ SELECT br.run_id,
         p_pattern     => 'findings/:finding_id/status',
         p_method      => 'PATCH',
         p_source_type => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
         p_source      => q'[
 DECLARE
-    v_finding_id   NUMBER := TO_NUMBER(:finding_id);
+    v_finding_id   NUMBER := TO_NUMBER(:finding_id DEFAULT NULL ON CONVERSION ERROR);
     v_new_status   VARCHAR2(20) := UPPER(TRIM(:status));
     v_comment      VARCHAR2(4000) := :comment;
     v_reviewed_by  VARCHAR2(200) := NVL(:reviewed_by, 'ords-local-user');
@@ -376,6 +401,10 @@ DECLARE
     v_health_score boms.health_score%TYPE;
     v_err_msg      VARCHAR2(4000);
 BEGIN
+    IF v_finding_id IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20012, 'Path parameter finding_id must be numeric.');
+    END IF;
+
     IF v_new_status NOT IN ('OPEN', 'REVIEWED', 'IGNORED') THEN
         RAISE_APPLICATION_ERROR(-20010, 'Status must be OPEN, REVIEWED, or IGNORED.');
     END IF;
@@ -434,32 +463,39 @@ BEGIN
     COMMIT;
 
     :status_code := 200;
-    OWA_UTIL.mime_header('application/json', FALSE);
-    OWA_UTIL.http_header_close;
-    HTP.P(JSON_OBJECT(
-        'findingId' VALUE v_finding_id,
-        'oldStatus' VALUE v_old_status,
-        'newStatus' VALUE v_new_status,
-        'reviewedBy' VALUE v_reviewed_by,
-        'bomId' VALUE v_bom_id,
-        'healthScore' VALUE v_health_score
-        RETURNING CLOB
-    ));
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         :status_code := 404;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT('error' VALUE 'FINDING_NOT_FOUND', 'findingId' VALUE v_finding_id RETURNING CLOB));
     WHEN OTHERS THEN
         ROLLBACK;
         v_err_msg := SUBSTR(SQLERRM, 1, 4000);
         :status_code := 400;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT('error' VALUE 'FINDING_STATUS_UPDATE_FAILED', 'message' VALUE SUBSTR(v_err_msg, 1, 1000) RETURNING CLOB));
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'findings/:finding_id/status',
+        p_method             => 'PATCH',
+        p_name               => 'finding_id',
+        p_bind_variable_name => 'finding_id',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'IN',
+        p_comments           => 'Finding ID from URI path'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'findings/:finding_id/status',
+        p_method             => 'PATCH',
+        p_name               => 'status_code',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'RESPONSE',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT',
+        p_comments           => 'HTTP response status code'
     );
 
     ORDS.DEFINE_TEMPLATE(
@@ -500,9 +536,10 @@ SELECT rule_id,
         p_pattern     => 'boms/:bom_id/advisories',
         p_method      => 'POST',
         p_source_type => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
         p_source      => q'[
 DECLARE
-    v_bom_id       NUMBER := TO_NUMBER(:bom_id);
+    v_bom_id       NUMBER := TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR);
     v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
     v_prompt       VARCHAR2(4000) := :summary_prompt;
     v_run_id       NUMBER;
@@ -513,6 +550,10 @@ DECLARE
     v_now          TIMESTAMP(6) WITH TIME ZONE;
     v_err_msg      VARCHAR2(4000);
 BEGIN
+    IF v_bom_id IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20021, 'Path parameter bom_id must be numeric.');
+    END IF;
+
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC'
       INTO v_now
       FROM dual;
@@ -589,31 +630,39 @@ BEGIN
     COMMIT;
 
     :status_code := 201;
-    OWA_UTIL.mime_header('application/json', FALSE);
-    OWA_UTIL.http_header_close;
-    HTP.P(JSON_OBJECT(
-        'advisoryId' VALUE v_advisory_id,
-        'runId' VALUE v_run_id,
-        'bomId' VALUE v_bom_id,
-        'scope' VALUE 'BOM',
-        'status' VALUE 'COMPLETED'
-        RETURNING CLOB
-    ));
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         :status_code := 404;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT('error' VALUE 'BOM_NOT_FOUND', 'bomId' VALUE v_bom_id RETURNING CLOB));
     WHEN OTHERS THEN
         ROLLBACK;
         v_err_msg := SUBSTR(SQLERRM, 1, 4000);
         :status_code := 400;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT('error' VALUE 'BOM_ADVISORY_FAILED', 'message' VALUE SUBSTR(v_err_msg, 1, 1000) RETURNING CLOB));
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms/:bom_id/advisories',
+        p_method             => 'POST',
+        p_name               => 'bom_id',
+        p_bind_variable_name => 'bom_id',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'IN',
+        p_comments           => 'BOM ID from URI path'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms/:bom_id/advisories',
+        p_method             => 'POST',
+        p_name               => 'status_code',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'RESPONSE',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT',
+        p_comments           => 'HTTP response status code'
     );
 
     ORDS.DEFINE_TEMPLATE(
@@ -627,9 +676,10 @@ END;
         p_pattern     => 'findings/:finding_id/advisories',
         p_method      => 'POST',
         p_source_type => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
         p_source      => q'[
 DECLARE
-    v_finding_id   NUMBER := TO_NUMBER(:finding_id);
+    v_finding_id   NUMBER := TO_NUMBER(:finding_id DEFAULT NULL ON CONVERSION ERROR);
     v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
     v_prompt       VARCHAR2(4000) := :question;
     v_bom_id       NUMBER;
@@ -642,6 +692,10 @@ DECLARE
     v_now          TIMESTAMP(6) WITH TIME ZONE;
     v_err_msg      VARCHAR2(4000);
 BEGIN
+    IF v_finding_id IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20022, 'Path parameter finding_id must be numeric.');
+    END IF;
+
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC'
       INTO v_now
       FROM dual;
@@ -711,32 +765,39 @@ BEGIN
     COMMIT;
 
     :status_code := 201;
-    OWA_UTIL.mime_header('application/json', FALSE);
-    OWA_UTIL.http_header_close;
-    HTP.P(JSON_OBJECT(
-        'advisoryId' VALUE v_advisory_id,
-        'runId' VALUE v_run_id,
-        'findingId' VALUE v_finding_id,
-        'bomId' VALUE v_bom_id,
-        'scope' VALUE 'FINDING',
-        'status' VALUE 'COMPLETED'
-        RETURNING CLOB
-    ));
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         :status_code := 404;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT('error' VALUE 'FINDING_NOT_FOUND', 'findingId' VALUE v_finding_id RETURNING CLOB));
     WHEN OTHERS THEN
         ROLLBACK;
         v_err_msg := SUBSTR(SQLERRM, 1, 4000);
         :status_code := 400;
-        OWA_UTIL.mime_header('application/json', FALSE);
-        OWA_UTIL.http_header_close;
-        HTP.P(JSON_OBJECT('error' VALUE 'FINDING_ADVISORY_FAILED', 'message' VALUE SUBSTR(v_err_msg, 1, 1000) RETURNING CLOB));
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'findings/:finding_id/advisories',
+        p_method             => 'POST',
+        p_name               => 'finding_id',
+        p_bind_variable_name => 'finding_id',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'IN',
+        p_comments           => 'Finding ID from URI path'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'findings/:finding_id/advisories',
+        p_method             => 'POST',
+        p_name               => 'status_code',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'RESPONSE',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT',
+        p_comments           => 'HTTP response status code'
     );
 
 END;
