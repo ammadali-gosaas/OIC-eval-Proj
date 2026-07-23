@@ -65,6 +65,12 @@ The ORDS API layer must present versioned REST resources and invoke the approved
 * `GET /boms/{bomId}/runs`: Returns comparable validation and refresh history.
 
 
+* `POST /boms/{bomId}/refresh`: Starts an Administrator-triggered selected-BOM refresh through OIC and records a `REFRESH` run in `BOM_RUNS`.
+
+
+* `POST /dashboard/refresh`: Optional broader Administrator-triggered refresh when the UI refresh is scoped to the dashboard dataset rather than one BOM.
+
+
 * `POST /validation-runs`: Starts selected-BOM validation and maps to `BOM_VALIDATION_PKG.run_full_validation`.
 
 
