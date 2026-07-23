@@ -130,9 +130,12 @@ SELECT b.bom_id,
        ) open_finding_count
   FROM boms b
   LEFT JOIN bom_components c ON c.bom_id = b.bom_id
- WHERE (:q IS NULL OR UPPER(b.item_number || ' ' || b.organization_code || ' ' || NVL(b.description, '')) LIKE '%' || UPPER(:q) || '%')
-   AND (:organization_code IS NULL OR b.organization_code = :organization_code)
-   AND (:status_label IS NULL OR b.status_label = :status_label)
+ WHERE (:organization_code IS NULL OR b.organization_code = :organization_code)
+   AND (
+        :search_text IS NULL
+        OR UPPER(b.item_number) LIKE '%' || UPPER(:search_text) || '%'
+        OR UPPER(NVL(b.description, '')) LIKE '%' || UPPER(:search_text) || '%'
+   )
  GROUP BY b.bom_id,
           b.organization_code,
           b.item_number,
@@ -144,6 +147,30 @@ SELECT b.bom_id,
           b.imported_at
  ORDER BY b.health_score ASC, b.item_number
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms',
+        p_method             => 'GET',
+        p_name               => 'organization_code',
+        p_bind_variable_name => 'organization_code',
+        p_source_type        => 'URI',
+        p_param_type         => 'STRING',
+        p_access_method      => 'IN',
+        p_comments           => 'Optional organization code query filter'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms',
+        p_method             => 'GET',
+        p_name               => 'search_text',
+        p_bind_variable_name => 'search_text',
+        p_source_type        => 'URI',
+        p_param_type         => 'STRING',
+        p_access_method      => 'IN',
+        p_comments           => 'Optional BOM search query'
     );
 
     ORDS.DEFINE_TEMPLATE(

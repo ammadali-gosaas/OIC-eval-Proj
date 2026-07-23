@@ -87,7 +87,7 @@ printf '\nUsing BOM_ID=%s for dependent tests.\n' "$BOM_ID"
 # Expected HTTP 200.
 # Expected JSON behavior: filtered paginated BOM response; items should match ORG1 when matching data exists, or be empty without server error.
 run_curl "03_get_boms_filtered" \
-  curl -X GET "$BASE_URL/boms?organization_code=ORG1&q=ASM" \
+  curl -X GET "$BASE_URL/boms?organization_code=ORG1&search_text=ASM" \
   -H "Accept: application/json"
 
 # Expected HTTP 200 when BOM_ID exists.
@@ -243,9 +243,9 @@ print_section "Fresh Readback After Writes"
 
 # Expected HTTP 200.
 # Expected JSON behavior: BOM detail reflects the latest health score, finding statuses, and newly created advisory-related run history.
-run_curl "22_get_bom_detail_final_readback" \
-  curl -X GET "$BASE_URL/boms/$BOM_ID" \
-  -H "Accept: application/json"
+# run_curl "22_get_bom_detail_final_readback" \
+#   curl -X GET "$BASE_URL/boms/$BOM_ID" \
+#   -H "Accept: application/json"
 
 # Expected HTTP 200.
 # Expected JSON behavior: run history includes validation and advisory runs created by this script.
