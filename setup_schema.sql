@@ -18,7 +18,6 @@ DROP TABLE BOM_RUNS CASCADE CONSTRAINTS PURGE;
 DROP TABLE BOM_COMPONENTS CASCADE CONSTRAINTS PURGE;
 DROP TABLE BOMS CASCADE CONSTRAINTS PURGE;
 
-
 -- --------------------------------------------------------------------
 -- 1. CREATE TABLES
 -- --------------------------------------------------------------------

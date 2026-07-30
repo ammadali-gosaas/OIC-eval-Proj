@@ -93,8 +93,10 @@ SELECT b.bom_id, b.organization_code, b.item_number, b.structure_name, b.descrip
        COUNT(c.bom_component_id) component_count,
        (SELECT COUNT(*) FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id WHERE br.bom_id = b.bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED')) open_finding_count
   FROM boms b LEFT JOIN bom_components c ON c.bom_id = b.bom_id
- WHERE (:organization_code IS NULL OR b.organization_code = :organization_code)
-   AND (:search_text IS NULL OR UPPER(b.item_number) LIKE '%' || UPPER(:search_text) || '%' OR UPPER(NVL(b.description, '')) LIKE '%' || UPPER(:search_text) || '%')
+ WHERE (:search_text IS NULL OR UPPER(b.item_number) LIKE '%' || UPPER(:search_text) || '%' OR UPPER(NVL(b.description, '')) LIKE '%' || UPPER(:search_text) || '%')
+   AND (:status_label IS NULL OR b.status_label = :status_label)
+   AND (:item_class IS NULL OR b.item_class = :item_class)
+   AND (:severity IS NULL OR EXISTS (SELECT 1 FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id JOIN validation_rules vr ON vr.rule_id = vf.rule_id WHERE br.bom_id = b.bom_id AND vr.severity = :severity AND vf.issue_status IN ('OPEN', 'REVIEWED')))
  GROUP BY b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at
  ORDER BY b.health_score ASC, b.item_number
         ]'
@@ -354,6 +356,58 @@ END;
         p_source         => q'[
 SELECT log_id, correlation_id, related_run_id, related_finding_id, component_code, stage, source_mode, status, occurred_at, duration_ms, event_level, error_code, details
   FROM diagnostic_logs ORDER BY occurred_at DESC, log_id DESC
+        ]'
+    );
+
+    -- 2. ADD GET /validation-runs (Global Run History)
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'validation-runs');
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'validation-runs',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 100,
+        p_source         => q'[
+SELECT br.run_id, br.bom_id, b.item_number, br.run_kind, br.trigger_type, br.status, br.source_mode, br.correlation_id, br.requested_by, br.started_at, br.completed_at, br.input_count, br.finding_count
+  FROM bom_runs br JOIN boms b ON b.bom_id = br.bom_id
+ ORDER BY br.started_at DESC, br.run_id DESC
+        ]'
+    );
+
+    -- 3. ADD GET /findings (Global Findings Review List)
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings');
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'findings',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 100,
+        p_source         => q'[
+SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, vr.rule_code, vr.rule_name, vr.severity, vf.issue_status, vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+  FROM validation_findings vf
+  JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+  JOIN bom_runs br ON br.run_id = vf.run_id
+  JOIN boms b ON b.bom_id = br.bom_id
+ WHERE (:issue_status IS NULL OR vf.issue_status = :issue_status)
+   AND (:severity IS NULL OR vr.severity = :severity)
+   AND (:rule_code IS NULL OR vr.rule_code = :rule_code)
+ ORDER BY vf.created_at DESC
+        ]'
+    );
+
+    -- 4. ADD POST /schedules (Mock Endpoint for UI Scheduler)
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'schedules');
+    ORDS.DEFINE_HANDLER(
+        p_module_name   => 'bom_api',
+        p_pattern       => 'schedules',
+        p_method        => 'POST',
+        p_source_type   => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source        => q'[
+BEGIN
+    -- Mock acceptance of UI scheduling payload
+    :status_code := 201;
+END;
         ]'
     );
 
