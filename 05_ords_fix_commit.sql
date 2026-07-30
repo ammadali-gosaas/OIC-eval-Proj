@@ -6,7 +6,7 @@ PROMPT Re-enabling BOM_APP_USER schema and defining complete BOM validation ORDS
 BEGIN
     ORDS.ENABLE_SCHEMA(
         p_enabled             => TRUE,
-        p_schema              => 'BOM_APP_USER',
+        p_schema              => 'ZA_SCHEMA',
         p_url_mapping_type    => 'BASE_PATH',
         p_url_mapping_pattern => 'bom',
         p_auto_rest_auth      => FALSE
