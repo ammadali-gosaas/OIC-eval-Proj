@@ -162,7 +162,36 @@ SELECT run_id, bom_id, run_kind, trigger_type, status, source_mode, idempotency_
     --------------------------------------------------------------------
     -- 3. VALIDATION EXECUTION ENDPOINTS
     --------------------------------------------------------------------
-    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'validation-runs');
+    ORDS.DEFINE_TEMPLATE(
+        p_module_name => 'bom_api',
+        p_pattern     => 'validation-runs'
+    );
+
+    -- 3. Define the POST handler to bridge the API to your package
+    --------------------------------------------------------------------
+    -- 3. VALIDATION EXECUTION & HISTORY ENDPOINTS
+    --------------------------------------------------------------------
+    -- Define the template exactly ONCE
+    ORDS.DEFINE_TEMPLATE(
+        p_module_name => 'bom_api',
+        p_pattern     => 'validation-runs'
+    );
+
+    -- Attach the GET Handler (Global Run History)
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'validation-runs',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 100,
+        p_source         => q'[
+SELECT br.run_id, br.bom_id, b.item_number, br.run_kind, br.trigger_type, br.status, br.source_mode, br.correlation_id, br.requested_by, br.started_at, br.completed_at, br.input_count, br.finding_count
+  FROM bom_runs br JOIN boms b ON b.bom_id = br.bom_id
+ ORDER BY br.started_at DESC, br.run_id DESC
+        ]'
+    );
+
+    -- Attach the POST Handler (Trigger Validation)
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
         p_pattern       => 'validation-runs',
@@ -174,10 +203,15 @@ DECLARE
     v_bom_id       NUMBER := :bom_id;
     v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
 BEGIN
-    IF v_bom_id IS NULL THEN RAISE_APPLICATION_ERROR(-20020, 'JSON payload must include numeric bom_id.'); END IF;
+    IF v_bom_id IS NULL THEN 
+        RAISE_APPLICATION_ERROR(-20020, 'JSON payload must include numeric bom_id.'); 
+    END IF;
+    
     BOM_VALIDATION_PKG.run_full_validation(v_bom_id, v_requested_by);
     :status_code := 201;
-EXCEPTION WHEN OTHERS THEN :status_code := 400;
+EXCEPTION 
+    WHEN OTHERS THEN 
+        :status_code := 400;
 END;
         ]'
     );
@@ -359,20 +393,6 @@ SELECT log_id, correlation_id, related_run_id, related_finding_id, component_cod
         ]'
     );
 
-    -- 2. ADD GET /validation-runs (Global Run History)
-    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'validation-runs');
-    ORDS.DEFINE_HANDLER(
-        p_module_name    => 'bom_api',
-        p_pattern        => 'validation-runs',
-        p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
-        p_source         => q'[
-SELECT br.run_id, br.bom_id, b.item_number, br.run_kind, br.trigger_type, br.status, br.source_mode, br.correlation_id, br.requested_by, br.started_at, br.completed_at, br.input_count, br.finding_count
-  FROM bom_runs br JOIN boms b ON b.bom_id = br.bom_id
- ORDER BY br.started_at DESC, br.run_id DESC
-        ]'
-    );
 
     -- 3. ADD GET /findings (Global Findings Review List)
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings');
@@ -396,7 +416,10 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
     );
 
     -- 4. ADD POST /schedules (Mock Endpoint for UI Scheduler)
-    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'schedules');
+    ORDS.DEFINE_TEMPLATE(
+        p_module_name => 'bom_api', 
+        p_pattern     => 'schedules'
+    );
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
         p_pattern       => 'schedules',
@@ -404,13 +427,50 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
         p_source_type   => ORDS.source_type_plsql,
         p_mimes_allowed => 'application/json',
         p_source        => q'[
-BEGIN
-    -- Mock acceptance of UI scheduling payload
-    :status_code := 201;
-END;
-        ]'
-    );
+    DECLARE
+        v_time     VARCHAR2(10) := :time;     -- Expected format: '07:00'
+        v_interval VARCHAR2(20) := :interval; -- Expected: 'Daily' or 'Weekly'
+        v_job_name VARCHAR2(100);
+        v_sql      VARCHAR2(4000);
+        v_freq     VARCHAR2(50);
+    BEGIN
+        -- 1. Generate a unique job name based on the current timestamp
+        v_job_name := 'BOM_VAL_JOB_' || TO_CHAR(SYSDATE, 'YYYYMMDD_HH24MISS');
 
+        -- 2. Determine the frequency based on the UI payload
+        IF UPPER(v_interval) = 'WEEKLY' THEN
+            v_freq := 'FREQ=WEEKLY; ';
+        ELSE
+            v_freq := 'FREQ=DAILY; ';
+        END IF;
+
+        -- 3. Define the PL/SQL block the database will execute in the background
+        -- This loops through all active BOMs and validates them one by one
+        v_sql := 'BEGIN ' ||
+                '  FOR b IN (SELECT bom_id FROM boms) LOOP ' ||
+                '    BOM_VALIDATION_PKG.run_full_validation(b.bom_id, ''System Scheduler''); ' ||
+                '  END LOOP; ' ||
+                'END;';
+
+        -- 4. Create and enable the background job
+        DBMS_SCHEDULER.CREATE_JOB (
+            job_name        => v_job_name,
+            job_type        => 'PLSQL_BLOCK',
+            job_action      => v_sql,
+            start_date      => SYSTIMESTAMP,
+            -- Oracle Calendaring Syntax: Run at the requested hour and minute
+            repeat_interval => v_freq || 'BYHOUR=' || SUBSTR(v_time, 1, 2) || '; BYMINUTE=' || SUBSTR(v_time, 4, 2) || ';',
+            enabled         => TRUE,
+            comments        => 'Scheduled via VBCS UI Dashboard'
+        );
+
+        :status_code := 201;
+    EXCEPTION 
+        WHEN OTHERS THEN 
+            :status_code := 400;
+    END;
+            ]'
+        );
     COMMIT;
 END;
 /
