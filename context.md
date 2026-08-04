@@ -154,6 +154,17 @@ All 14 endpoints are defined in the master consolidation script `05_ords_fix_com
 
  | `DIAGNOSTIC_LOGS`<br> |
 
+### Patch 05b Additions (UI-Aligned Global Endpoints)
+
+The following endpoints and filters were added to bridge the gap between the static HTML wireframes (`final.html`) and the dynamic ORDS API requirements:
+
+| Method | Endpoint | Purpose | Target Tables / Logic |
+| --- | --- | --- | --- |
+| `GET` | `/boms` | **UPDATED:** Now accepts `:status_label`, `:item_class`, and `:severity` query parameters for dashboard UI chart filtering. | `BOMS`, `BOM_RUNS`, `VALIDATION_FINDINGS`, `VALIDATION_RULES` |
+| `GET` | `/validation-runs` | **NEW:** Global run history list (returns runs across *all* BOMs). | `BOM_RUNS`, `BOMS` |
+| `GET` | `/findings` | **NEW:** Global findings list for the Review Workspace. Accepts `:issue_status`, `:severity`, and `:rule_code` filters. | `VALIDATION_FINDINGS`, `VALIDATION_RULES`, `BOMS` |
+| `POST` | `/schedules` | **NEW:** Mock endpoint to accept the payload from the UI's "Run Scheduled Validation" modal. | Returns `201 Created` |
+
 ---
 
 ## 5. Repository Files & Maintenance
