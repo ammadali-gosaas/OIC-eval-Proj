@@ -91,7 +91,13 @@ END;
         p_source         => q'[
 SELECT b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at,
        COUNT(c.bom_component_id) component_count,
-       (SELECT COUNT(*) FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id WHERE br.bom_id = b.bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED')) open_finding_count
+       (SELECT COUNT(*) FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id WHERE br.bom_id = b.bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED')) open_finding_count,
+       (SELECT LISTAGG(DISTINCT vr.severity, ',') WITHIN GROUP (ORDER BY vr.severity)
+          FROM bom_runs br
+          JOIN validation_findings vf ON vf.run_id = br.run_id
+          JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+         WHERE br.bom_id = b.bom_id
+           AND vf.issue_status IN ('OPEN', 'REVIEWED')) finding_severities
   FROM boms b LEFT JOIN bom_components c ON c.bom_id = b.bom_id
  WHERE (:organization_code IS NULL OR b.organization_code = :organization_code)
    AND (:search_text IS NULL OR UPPER(b.item_number) LIKE '%' || UPPER(:search_text) || '%' OR UPPER(NVL(b.description, '')) LIKE '%' || UPPER(:search_text) || '%')
