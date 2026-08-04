@@ -477,6 +477,46 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
     END;
             ]'
         );
+
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'rules/:rule_id');
+    ORDS.DEFINE_HANDLER(
+        p_module_name   => 'bom_api',
+        p_pattern       => 'rules/:rule_id',
+        p_method        => 'PUT',
+        p_source_type   => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source        => q'[
+DECLARE
+    v_rule_id NUMBER := TO_NUMBER(:rule_id DEFAULT NULL ON CONVERSION ERROR);
+    v_name VARCHAR2(200) := :rule_name;
+    v_severity VARCHAR2(20) := UPPER(TRIM(:severity));
+    v_desc VARCHAR2(1000) := :description;
+    v_thresh VARCHAR2(1000) := :threshold_or_configuration;
+    v_enabled CHAR(1) := NVL(UPPER(TRIM(:enabled_flag)), 'Y');
+BEGIN
+    IF v_rule_id IS NULL THEN RAISE_APPLICATION_ERROR(-20023, 'Path parameter rule_id must be numeric.'); END IF;
+    
+    UPDATE validation_rules 
+       SET rule_name = NVL(v_name, rule_name),
+           severity = NVL(v_severity, severity),
+           description = NVL(v_desc, description),
+           threshold_or_configuration = NVL(v_thresh, threshold_or_configuration),
+           enabled_flag = v_enabled,
+           updated_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
+     WHERE rule_id = v_rule_id;
+     
+    IF SQL%ROWCOUNT = 0 THEN
+        :status_code := 404;
+    ELSE
+        COMMIT;
+        :status_code := 200;
+    END IF;
+EXCEPTION 
+    WHEN OTHERS THEN ROLLBACK; :status_code := 400;
+END;
+        ]'
+    );
+
     COMMIT;
 END;
 /
