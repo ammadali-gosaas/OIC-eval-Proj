@@ -1,0 +1,1491 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "BOM Validation and Anomaly Detection Prototype API",
+        "description": "ORDS-generated REST API for the BOM (Bill of Materials) validation, anomaly detection, findings review, AI advisory, and diagnostics prototype. Exposed via Oracle REST Data Services (ORDS) under schema alias `bom`, module `bom_api`.",
+        "version": "1.0.0",
+        "x-vb": {
+            "serviceType": "openapi"
+        }
+    },
+    "servers": [
+        {
+            "url": "http://172.105.152.7:8181/ords/bom",
+            "description": "ORDS base path for the bom_api module (schema alias: bom)"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Dashboard",
+            "description": "Aggregate KPI and summary endpoints"
+        },
+        {
+            "name": "BOMs",
+            "description": "BOM summary, detail, and refresh operations"
+        },
+        {
+            "name": "Validation Runs",
+            "description": "Triggering and reviewing validation executions"
+        },
+        {
+            "name": "Findings",
+            "description": "Validation findings review and status management"
+        },
+        {
+            "name": "Advisories",
+            "description": "AI-generated advisory summaries for BOMs and findings"
+        },
+        {
+            "name": "Rules",
+            "description": "Validation rule catalog"
+        },
+        {
+            "name": "Diagnostics",
+            "description": "Diagnostic/event log retrieval"
+        },
+        {
+            "name": "Schedules",
+            "description": "Scheduled background validation jobs"
+        }
+    ],
+    "paths": {
+        "/dashboard": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Get dashboard summary",
+                "description": "Returns aggregate KPIs: BOM counts by health status, average health score, open finding count, severity breakdown, and item-class summary.",
+                "operationId": "getDashboard",
+                "responses": {
+                    "200": {
+                        "description": "Dashboard summary object",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/refresh": {
+            "post": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Trigger dashboard refresh",
+                "description": "Triggers an asynchronous refresh of dashboard metrics. Returns immediately with 202 Accepted.",
+                "operationId": "refreshDashboard",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Refresh accepted for asynchronous processing"
+                    }
+                }
+            }
+        },
+        "/boms": {
+            "get": {
+                "tags": [
+                    "BOMs"
+                ],
+                "summary": "List BOMs",
+                "description": "Returns a paginated, filterable list of BOMs with component counts and open finding counts.",
+                "operationId": "listBoms",
+                "parameters": [
+                    {
+                        "name": "search_text",
+                        "in": "query",
+                        "description": "Case-insensitive match against item number or description.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status_label",
+                        "in": "query",
+                        "description": "Filter by BOM status.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "HEALTHY",
+                                "RISKY"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "item_class",
+                        "in": "query",
+                        "description": "Filter by item class.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "severity",
+                        "in": "query",
+                        "description": "Filter to BOMs having at least one open/reviewed finding of this severity.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "CRITICAL",
+                                "HIGH",
+                                "WARNING"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Pagination offset.",
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size (max 100).",
+                        "schema": {
+                            "type": "integer",
+                            "default": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of BOM summaries",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BomSummary"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/boms/{bom_id}": {
+            "get": {
+                "tags": [
+                    "BOMs"
+                ],
+                "summary": "Get BOM detail",
+                "description": "Returns full BOM detail including header, components, and findings.",
+                "operationId": "getBomDetail",
+                "parameters": [
+                    {
+                        "name": "bom_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "BOM detail object",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BomDetailResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/boms/{bom_id}/refresh": {
+            "post": {
+                "tags": [
+                    "BOMs"
+                ],
+                "summary": "Refresh a single BOM",
+                "description": "Creates a mock REFRESH run record for the given BOM.",
+                "operationId": "refreshBom",
+                "parameters": [
+                    {
+                        "name": "bom_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "requested_by": {
+                                        "type": "string",
+                                        "default": "ords-local-user"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Refresh run created"
+                    },
+                    "400": {
+                        "description": "Refresh failed"
+                    }
+                }
+            }
+        },
+        "/boms/{bom_id}/runs": {
+            "get": {
+                "tags": [
+                    "BOMs"
+                ],
+                "summary": "List runs for a BOM",
+                "description": "Returns the run history for a specific BOM, most recent first.",
+                "operationId": "listBomRuns",
+                "parameters": [
+                    {
+                        "name": "bom_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of BOM runs",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BomRun"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/boms/{bom_id}/advisories": {
+            "post": {
+                "tags": [
+                    "Advisories"
+                ],
+                "summary": "Generate AI advisory for a BOM",
+                "description": "Generates a mock AI advisory summary scoped to the entire BOM.",
+                "operationId": "createBomAdvisory",
+                "parameters": [
+                    {
+                        "name": "bom_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "requested_by": {
+                                        "type": "string",
+                                        "default": "ords-local-user"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Advisory generated"
+                    },
+                    "400": {
+                        "description": "Advisory generation failed"
+                    },
+                    "404": {
+                        "description": "BOM not found"
+                    }
+                }
+            }
+        },
+        "/validation-runs": {
+            "get": {
+                "tags": [
+                    "Validation Runs"
+                ],
+                "summary": "List all validation runs",
+                "description": "Returns global run history across all BOMs, most recent first.",
+                "operationId": "listValidationRuns",
+                "responses": {
+                    "200": {
+                        "description": "List of validation runs",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ValidationRunSummary"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Validation Runs"
+                ],
+                "summary": "Trigger full validation",
+                "description": "Invokes BOM_VALIDATION_PKG.run_full_validation for the given bom_id.",
+                "operationId": "createValidationRun",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "bom_id"
+                                ],
+                                "properties": {
+                                    "bom_id": {
+                                        "type": "integer"
+                                    },
+                                    "requested_by": {
+                                        "type": "string",
+                                        "default": "ords-local-user"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Validation run triggered"
+                    },
+                    "400": {
+                        "description": "bom_id missing or validation failed"
+                    }
+                }
+            }
+        },
+        "/validation-runs/{run_id}": {
+            "get": {
+                "tags": [
+                    "Validation Runs"
+                ],
+                "summary": "Get validation run detail",
+                "operationId": "getValidationRun",
+                "parameters": [
+                    {
+                        "name": "run_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Validation run detail",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationRunDetail"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/findings": {
+            "get": {
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "List findings (global review list)",
+                "description": "Returns validation findings across all BOMs, filterable by status, severity, and rule.",
+                "operationId": "listFindings",
+                "parameters": [
+                    {
+                        "name": "issue_status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "OPEN",
+                                "REVIEWED",
+                                "IGNORED"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "severity",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "CRITICAL",
+                                "HIGH",
+                                "WARNING"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "rule_code",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of findings",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Finding"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/findings/{finding_id}/status": {
+            "patch": {
+                "tags": [
+                    "Findings"
+                ],
+                "summary": "Update finding status",
+                "description": "Transitions a finding to OPEN, REVIEWED, or IGNORED, logs the review, and recalculates the parent BOM's health score.",
+                "operationId": "updateFindingStatus",
+                "parameters": [
+                    {
+                        "name": "finding_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "status"
+                                ],
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "OPEN",
+                                            "REVIEWED",
+                                            "IGNORED"
+                                        ]
+                                    },
+                                    "comment": {
+                                        "type": "string",
+                                        "description": "Required when status is IGNORED."
+                                    },
+                                    "reviewed_by": {
+                                        "type": "string",
+                                        "default": "ords-local-user"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Status updated"
+                    },
+                    "400": {
+                        "description": "Invalid status, missing comment, or update failed"
+                    },
+                    "404": {
+                        "description": "Finding not found"
+                    }
+                }
+            }
+        },
+        "/findings/{finding_id}/advisories": {
+            "post": {
+                "tags": [
+                    "Advisories"
+                ],
+                "summary": "Generate AI advisory for a finding",
+                "description": "Generates a mock AI advisory summary scoped to a single finding.",
+                "operationId": "createFindingAdvisory",
+                "parameters": [
+                    {
+                        "name": "finding_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "requested_by": {
+                                        "type": "string",
+                                        "default": "ords-local-user"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Advisory generated"
+                    },
+                    "400": {
+                        "description": "Advisory generation failed"
+                    },
+                    "404": {
+                        "description": "Finding not found"
+                    }
+                }
+            }
+        },
+        "/advisories/{requestId}": {
+            "get": {
+                "tags": [
+                    "Advisories"
+                ],
+                "summary": "Get advisory by ID",
+                "operationId": "getAdvisory",
+                "parameters": [
+                    {
+                        "name": "requestId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Advisory ID."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Advisory detail",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Advisory"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/rules": {
+            "get": {
+                "tags": [
+                    "Rules"
+                ],
+                "summary": "List validation rules",
+                "operationId": "listRules",
+                "responses": {
+                    "200": {
+                        "description": "List of validation rules",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetRules"
+                                },
+                                "examples": {
+                                    "vb": {
+                                        "summary": "Example stored by VB User",
+                                        "externalValue": "./examples/listRules/response_200_application_json_vb.json"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Rules"
+                ],
+                "summary": "Create a validation rule",
+                "operationId": "createRule",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "rule_code",
+                                    "rule_name",
+                                    "severity"
+                                ],
+                                "properties": {
+                                    "rule_code": {
+                                        "type": "string",
+                                        "maxLength": 50
+                                    },
+                                    "rule_name": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                    },
+                                    "severity": {
+                                        "type": "string",
+                                        "enum": [
+                                            "CRITICAL",
+                                            "HIGH",
+                                            "WARNING"
+                                        ]
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "maxLength": 1000,
+                                        "default": "Custom Prototype Rule"
+                                    },
+                                    "threshold_or_configuration": {
+                                        "type": "string",
+                                        "maxLength": 1000
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Rule created"
+                    },
+                    "400": {
+                        "description": "Rule creation failed"
+                    }
+                }
+            }
+        },
+        "/diagnostics/runs": {
+            "get": {
+                "tags": [
+                    "Diagnostics"
+                ],
+                "summary": "List diagnostic log entries",
+                "description": "Returns diagnostic/event log entries, most recent first.",
+                "operationId": "listDiagnosticRuns",
+                "responses": {
+                    "200": {
+                        "description": "List of diagnostic log entries",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/DiagnosticLog"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/schedules": {
+            "post": {
+                "tags": [
+                    "Schedules"
+                ],
+                "summary": "Create a scheduled validation job",
+                "description": "Creates a DBMS_SCHEDULER job that runs full validation against all BOMs on a daily or weekly cadence at the specified time.",
+                "operationId": "createSchedule",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "time",
+                                    "interval"
+                                ],
+                                "properties": {
+                                    "time": {
+                                        "type": "string",
+                                        "example": "07:00",
+                                        "description": "24-hour HH:MM time of day to run the job."
+                                    },
+                                    "interval": {
+                                        "type": "string",
+                                        "enum": [
+                                            "Daily",
+                                            "Weekly"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Scheduled job created"
+                    },
+                    "400": {
+                        "description": "Job creation failed"
+                    }
+                }
+            }
+        },
+        "/rules/{rule_id}": {
+            "parameters": [
+                {
+                    "name": "rule_id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "put": {
+                "operationId": "updateRule",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PutRulesRule_idRequest"
+                            },
+                            "examples": {
+                                "vb": {
+                                    "externalValue": "./examples/updateRule/request_application_json_vb.json"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {},
+                "x-vb": {
+                    "actionHint": "update"
+                }
+            }
+        },
+        "/rules/{rule_code}": {
+            "parameters": [
+                {
+                    "name": "rule_code",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "delete": {
+                "operationId": "deleteRule",
+                "responses": {},
+                "x-vb": {
+                    "actionHint": "delete"
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "DashboardResponse": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "object",
+                        "properties": {
+                            "totalBoms": {
+                                "type": "integer"
+                            },
+                            "healthyBoms": {
+                                "type": "integer"
+                            },
+                            "riskyBoms": {
+                                "type": "integer"
+                            },
+                            "averageHealthScore": {
+                                "type": "number"
+                            },
+                            "openFindings": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "severityCounts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "severity": {
+                                    "type": "string"
+                                },
+                                "findingCount": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    "itemClassSummary": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "itemClass": {
+                                    "type": "string"
+                                },
+                                "bomCount": {
+                                    "type": "integer"
+                                },
+                                "averageHealthScore": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "BomSummary": {
+                "type": "object",
+                "properties": {
+                    "bom_id": {
+                        "type": "integer"
+                    },
+                    "organization_code": {
+                        "type": "string"
+                    },
+                    "item_number": {
+                        "type": "string"
+                    },
+                    "structure_name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "item_class": {
+                        "type": "string"
+                    },
+                    "health_score": {
+                        "type": "number"
+                    },
+                    "status_label": {
+                        "type": "string",
+                        "enum": [
+                            "HEALTHY",
+                            "RISKY"
+                        ]
+                    },
+                    "imported_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "component_count": {
+                        "type": "integer"
+                    },
+                    "open_finding_count": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "BomDetailResponse": {
+                "type": "object",
+                "properties": {
+                    "bom": {
+                        "type": "object",
+                        "properties": {
+                            "bomId": {
+                                "type": "integer"
+                            },
+                            "billSequenceId": {
+                                "type": "integer"
+                            },
+                            "organizationCode": {
+                                "type": "string"
+                            },
+                            "itemNumber": {
+                                "type": "string"
+                            },
+                            "structureName": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            },
+                            "effectivityControl": {
+                                "type": "string"
+                            },
+                            "sourceUpdatedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "importBatchId": {
+                                "type": "string"
+                            },
+                            "importedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "itemClass": {
+                                "type": "string"
+                            },
+                            "healthScore": {
+                                "type": "number"
+                            },
+                            "statusLabel": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "components": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "bomComponentId": {
+                                    "type": "integer"
+                                },
+                                "componentSequenceId": {
+                                    "type": "integer"
+                                },
+                                "parentItemNumber": {
+                                    "type": "string"
+                                },
+                                "componentItemNumber": {
+                                    "type": "string"
+                                },
+                                "componentItemClass": {
+                                    "type": "string"
+                                },
+                                "quantity": {
+                                    "type": "number"
+                                },
+                                "uomCode": {
+                                    "type": "string"
+                                },
+                                "itemSequenceNumber": {
+                                    "type": "integer"
+                                },
+                                "operationSequence": {
+                                    "type": "integer"
+                                },
+                                "itemStatus": {
+                                    "type": "string"
+                                },
+                                "bomLevel": {
+                                    "type": "integer"
+                                },
+                                "componentPath": {
+                                    "type": "string"
+                                },
+                                "anomalyMinQuantity": {
+                                    "type": "number"
+                                },
+                                "anomalyMaxQuantity": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "findings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Finding"
+                        }
+                    }
+                }
+            },
+            "BomRun": {
+                "type": "object",
+                "properties": {
+                    "run_id": {
+                        "type": "integer"
+                    },
+                    "bom_id": {
+                        "type": "integer"
+                    },
+                    "run_kind": {
+                        "type": "string"
+                    },
+                    "trigger_type": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "source_mode": {
+                        "type": "string"
+                    },
+                    "idempotency_key": {
+                        "type": "string"
+                    },
+                    "correlation_id": {
+                        "type": "string"
+                    },
+                    "requested_by": {
+                        "type": "string"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "completed_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "input_count": {
+                        "type": "integer"
+                    },
+                    "finding_count": {
+                        "type": "integer"
+                    },
+                    "health_score": {
+                        "type": "number"
+                    },
+                    "error_code": {
+                        "type": "string"
+                    },
+                    "error_message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ValidationRunSummary": {
+                "type": "object",
+                "properties": {
+                    "run_id": {
+                        "type": "integer"
+                    },
+                    "bom_id": {
+                        "type": "integer"
+                    },
+                    "item_number": {
+                        "type": "string"
+                    },
+                    "run_kind": {
+                        "type": "string"
+                    },
+                    "trigger_type": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "source_mode": {
+                        "type": "string"
+                    },
+                    "correlation_id": {
+                        "type": "string"
+                    },
+                    "requested_by": {
+                        "type": "string"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "completed_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "input_count": {
+                        "type": "integer"
+                    },
+                    "finding_count": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "ValidationRunDetail": {
+                "type": "object",
+                "properties": {
+                    "run_id": {
+                        "type": "integer"
+                    },
+                    "bom_id": {
+                        "type": "integer"
+                    },
+                    "organization_code": {
+                        "type": "string"
+                    },
+                    "item_number": {
+                        "type": "string"
+                    },
+                    "run_kind": {
+                        "type": "string"
+                    },
+                    "trigger_type": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "source_mode": {
+                        "type": "string"
+                    },
+                    "correlation_id": {
+                        "type": "string"
+                    },
+                    "requested_by": {
+                        "type": "string"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "completed_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "input_count": {
+                        "type": "integer"
+                    },
+                    "finding_count": {
+                        "type": "integer"
+                    },
+                    "health_score": {
+                        "type": "number"
+                    },
+                    "error_code": {
+                        "type": "string"
+                    },
+                    "error_message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Finding": {
+                "type": "object",
+                "properties": {
+                    "finding_id": {
+                        "type": "integer"
+                    },
+                    "run_id": {
+                        "type": "integer"
+                    },
+                    "bom_component_id": {
+                        "type": "integer"
+                    },
+                    "bom_id": {
+                        "type": "integer"
+                    },
+                    "item_number": {
+                        "type": "string"
+                    },
+                    "rule_code": {
+                        "type": "string"
+                    },
+                    "rule_name": {
+                        "type": "string"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": [
+                            "CRITICAL",
+                            "HIGH",
+                            "WARNING"
+                        ]
+                    },
+                    "issue_status": {
+                        "type": "string",
+                        "enum": [
+                            "OPEN",
+                            "REVIEWED",
+                            "IGNORED"
+                        ]
+                    },
+                    "actual_value": {
+                        "type": "string"
+                    },
+                    "expected_value": {
+                        "type": "string"
+                    },
+                    "evidence_json": {
+                        "type": "object"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "Advisory": {
+                "type": "object",
+                "properties": {
+                    "advisory_id": {
+                        "type": "integer"
+                    },
+                    "run_id": {
+                        "type": "integer"
+                    },
+                    "finding_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "advisory_scope": {
+                        "type": "string",
+                        "enum": [
+                            "BOM",
+                            "FINDING"
+                        ]
+                    },
+                    "ai_status": {
+                        "type": "string"
+                    },
+                    "ai_summary": {
+                        "type": "string"
+                    },
+                    "ai_suggested_action": {
+                        "type": "string"
+                    },
+                    "ai_provider": {
+                        "type": "string"
+                    },
+                    "requested_by": {
+                        "type": "string"
+                    },
+                    "generated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "ValidationRule": {
+                "type": "object",
+                "properties": {
+                    "rule_id": {
+                        "type": "integer"
+                    },
+                    "rule_code": {
+                        "type": "string"
+                    },
+                    "rule_name": {
+                        "type": "string"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": [
+                            "CRITICAL",
+                            "HIGH",
+                            "WARNING"
+                        ]
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "threshold_or_configuration": {
+                        "type": "string"
+                    },
+                    "enabled_flag": {
+                        "type": "string",
+                        "enum": [
+                            "Y",
+                            "N"
+                        ]
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "DiagnosticLog": {
+                "type": "object",
+                "properties": {
+                    "log_id": {
+                        "type": "integer"
+                    },
+                    "correlation_id": {
+                        "type": "string"
+                    },
+                    "related_run_id": {
+                        "type": "integer"
+                    },
+                    "related_finding_id": {
+                        "type": "integer"
+                    },
+                    "component_code": {
+                        "type": "string"
+                    },
+                    "stage": {
+                        "type": "string"
+                    },
+                    "source_mode": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "occurred_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "duration_ms": {
+                        "type": "integer"
+                    },
+                    "event_level": {
+                        "type": "string"
+                    },
+                    "error_code": {
+                        "type": "string"
+                    },
+                    "details": {
+                        "type": "string"
+                    }
+                }
+            },
+            "GetRules": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "rule_id": {
+                                    "type": "integer"
+                                },
+                                "rule_code": {
+                                    "type": "string"
+                                },
+                                "rule_name": {
+                                    "type": "string"
+                                },
+                                "severity": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "threshold_or_configuration": {
+                                    "type": "string"
+                                },
+                                "enabled_flag": {
+                                    "type": "string"
+                                },
+                                "created_at": {
+                                    "type": "string"
+                                },
+                                "updated_at": {
+                                    "type": "string",
+                                    "nullable": true
+                                }
+                            }
+                        }
+                    },
+                    "first": {
+                        "type": "object",
+                        "properties": {
+                            "$ref": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "PutRulesRule_idRequest": {
+                "type": "object",
+                "properties": {
+                    "rule_name": {
+                        "type": "string"
+                    },
+                    "severity": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "threshold_or_configuration": {
+                        "type": "string"
+                    },
+                    "enabled_flag": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "bom-detail",
+  "description": "Flow main",
+  "defaultPage": "bom-detail-start",
+  "services": {},
+  "types": {},
+  "variables": {}
+}

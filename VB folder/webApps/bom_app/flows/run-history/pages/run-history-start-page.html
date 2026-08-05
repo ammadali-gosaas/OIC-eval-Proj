@@ -1,0 +1,82 @@
+<div class="p-6 md:p-8 space-y-6 bg-[#f8fafc] text-base text-slate-800 min-h-screen font-sans w-full">
+  
+  <!-- Page Header -->
+  <div class="flex justify-between items-center flex-wrap gap-4">
+    <div>
+      <h2 class="text-3xl font-black text-slate-900">Run History</h2>
+      <p class="text-slate-600 mt-1 text-base font-medium">Clean view of import and validation executions across all BOMs.</p>
+    </div>
+    <button on-click="[[ $listeners.clickTriggerValidation ]]" :disabled="[[ $variables.isTriggering ]]" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-sm transition-all hover:bg-emerald-700 shadow-sm flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <oj-bind-if test="[[ $variables.isTriggering ]]">Triggering…</oj-bind-if>
+      <oj-bind-if test="[[ !$variables.isTriggering ]]">Trigger Full Validation</oj-bind-if>
+    </button>
+  </div>
+
+  <!-- Run History Data Table (Built with CSS Flexbox to prevent VB rendering bugs) -->
+  <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+    
+    <!-- Table Header Bar -->
+    <div class="p-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
+      <h3 class="font-black text-lg text-slate-900">Execution Log</h3>
+      <div class="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> 
+        Click row to reveal raw Technical Metadata
+      </div>
+    </div>
+
+    <!-- Table Content Wrapper -->
+    <div class="overflow-x-auto">
+      <div class="min-w-[900px] flex flex-col w-full text-sm text-left">
+        
+        <!-- Headers -->
+        <div class="flex bg-white border-b border-slate-200">
+          <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">BOM Assembly</div>
+          <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Run Type</div>
+          <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Trigger Type</div>
+          <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Status</div>
+          <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Requested By</div>
+          <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Started At</div>
+        </div>
+
+        <!-- DYNAMIC LOOP -->
+        <oj-bind-for-each data="[[ $variables.runHistoryList ]]">
+          <template>
+            <div class="flex flex-col border-b border-slate-100">
+              
+              <!-- Main Clickable Row -->
+              <div on-click="[[ $listeners.clickRow ]]" :data-row-id="[[ $current.data.run_id ]]" :class="[[ 'flex items-center w-full cursor-pointer transition-colors ' + ($variables.expandedRowId == $current.data.run_id ? 'bg-slate-50 border-l-4 border-slate-900' : 'bg-white hover:bg-slate-50 border-l-4 border-transparent') ]]">
+                <div class="p-4 w-1/6 font-black text-slate-900 text-base"><oj-bind-text value="[[ $current.data.item_number ]]"></oj-bind-text></div>
+                <div class="p-4 w-1/6 font-bold text-slate-700"><oj-bind-text value="[[ $current.data.run_kind ]]"></oj-bind-text></div>
+                <div class="p-4 w-1/6 font-bold text-slate-700"><oj-bind-text value="[[ $current.data.trigger_type ]]"></oj-bind-text></div>
+                <div class="p-4 w-1/6"><span class="inline-flex items-center rounded-full shadow-sm px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border border-emerald-200 bg-emerald-100 text-emerald-800"><oj-bind-text value="[[ $current.data.status ]]"></oj-bind-text></span></div>
+                <div class="p-4 w-1/6 font-bold text-slate-700"><oj-bind-text value="[[ $current.data.requested_by ]]"></oj-bind-text></div>
+                <div class="p-4 w-1/6 font-bold text-slate-700"><oj-bind-text value="[[ $current.data.started_at ]]"></oj-bind-text></div>
+              </div>
+
+              <!-- Expanded Metadata Panel -->
+              <oj-bind-if test="[[ $variables.expandedRowId == $current.data.run_id ]]">
+                <div class="bg-slate-50 border-b-2 border-slate-200 shadow-inner p-5 w-full">
+                  <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <h4 class="font-black text-[10px] uppercase text-slate-400 mb-4 tracking-widest border-b border-slate-100 pb-2">Technical Execution Metadata</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-5 text-xs font-mono text-slate-600">
+                      <div><b class="text-slate-900 font-sans block mb-1">Run ID:</b> <oj-bind-text value="[[ $current.data.run_id ]]"></oj-bind-text></div>
+                      <div><b class="text-slate-900 font-sans block mb-1">Internal BOM ID:</b> <oj-bind-text value="[[ $current.data.bom_id ]]"></oj-bind-text></div>
+                      <div><b class="text-slate-900 font-sans block mb-1">Source Mode:</b> <oj-bind-text value="[[ $current.data.source_mode || 'Manual' ]]"></oj-bind-text></div>
+                      <div><b class="text-slate-900 font-sans block mb-1">Input Count:</b> <oj-bind-text value="[[ $current.data.input_count ]]"></oj-bind-text></div>
+                      
+                      <div class="col-span-2 md:col-span-4 mt-2"><b class="text-slate-900 font-sans block mb-1.5">Idempotency Key:</b> <span class="bg-slate-50 px-3 py-1.5 border border-slate-200 rounded block break-all font-bold text-slate-500"><oj-bind-text value="[[ $current.data.idempotency_key || '—' ]]"></oj-bind-text></span></div>
+                      <div class="col-span-2 md:col-span-4"><b class="text-slate-900 font-sans block mb-1.5">Correlation Trace ID:</b> <span class="bg-slate-50 px-3 py-1.5 border border-slate-200 rounded block break-all font-bold text-slate-500"><oj-bind-text value="[[ $current.data.correlation_id ]]"></oj-bind-text></span></div>
+                    </div>
+                  </div>
+                </div>
+              </oj-bind-if>
+            </div>
+          </template>
+        </oj-bind-for-each>
+        <!-- DYNAMIC LOOP ENDS -->
+
+      </div>
+    </div>
+  </div>
+</div>

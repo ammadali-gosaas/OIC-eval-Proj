@@ -1,0 +1,8 @@
+{
+  "id": "logs",
+  "description": "Flow main",
+  "defaultPage": "logs-start",
+  "services": {},
+  "types": {},
+  "variables": {}
+}

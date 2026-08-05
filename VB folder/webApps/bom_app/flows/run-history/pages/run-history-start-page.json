@@ -1,0 +1,217 @@
+{
+  "title": "Run History",
+  "description": "Validation execution logs — live from BOMValidation/listValidationRuns",
+  "variables": {
+    "expandedRowId": {
+      "type": "string"
+    },
+    "runHistoryList": {
+      "type": "any",
+      "defaultValue": []
+    },
+    "isTriggering": {
+      "type": "boolean",
+      "defaultValue": false
+    }
+  },
+  "metadata": {},
+  "types": {},
+  "chains": {
+    "LoadStylesChain": {
+      "root": "callFunctionLoadTailwind",
+      "actions": {
+        "callFunctionLoadTailwind": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "loadTailwind"
+          },
+          "outcomes": {
+            "success": "loadRuns"
+          }
+        }
+      }
+    },
+    "loadRunsChain": {
+      "description": "Fetch all validation runs from BOMValidation/listValidationRuns",
+      "root": "callListRuns",
+      "actions": {
+        "callListRuns": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/listValidationRuns"
+          },
+          "outcomes": {
+            "success": "parseRuns",
+            "failure": "fireLoadError"
+          }
+        },
+        "parseRuns": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "setRunsData",
+            "params": [
+              "{{ $chain.results.callListRuns.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignRuns"
+          }
+        },
+        "assignRuns": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.runHistoryList": {
+              "source": "{{ $chain.results.parseRuns }}",
+              "auto": "always"
+            }
+          }
+        },
+        "fireLoadError": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Failed to load validation runs. Please try again.",
+            "type": "error",
+            "displayMode": "transient"
+          }
+        }
+      }
+    },
+    "triggerValidationChain": {
+      "description": "POST BOMValidation/createValidationRun to trigger full validation",
+      "root": "setTriggering",
+      "actions": {
+        "setTriggering": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isTriggering": {
+              "source": true
+            }
+          },
+          "outcomes": {
+            "success": "callCreateRun"
+          }
+        },
+        "callCreateRun": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/createValidationRun"
+          },
+          "outcomes": {
+            "success": "notifySuccess",
+            "failure": "notifyError"
+          }
+        },
+        "notifySuccess": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Full validation triggered. Refreshing run list…",
+            "type": "confirmation",
+            "displayMode": "transient"
+          },
+          "outcomes": {
+            "success": "reloadRuns"
+          }
+        },
+        "reloadRuns": {
+          "module": "vb/action/builtin/callChainAction",
+          "parameters": {
+            "id": "loadRunsChain"
+          },
+          "outcomes": {
+            "success": "clearTriggering"
+          }
+        },
+        "notifyError": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Failed to trigger validation. Please try again.",
+            "type": "error",
+            "displayMode": "persist"
+          },
+          "outcomes": {
+            "success": "clearTriggering"
+          }
+        },
+        "clearTriggering": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isTriggering": {
+              "source": false
+            }
+          }
+        }
+      }
+    },
+    "ToggleRowChain": {
+      "variables": {
+        "rowId": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "checkIfAlreadyExpanded",
+      "actions": {
+        "checkIfAlreadyExpanded": {
+          "module": "vb/action/builtin/ifAction",
+          "parameters": {
+            "condition": "[[ String($page.variables.expandedRowId) === String($chain.variables.rowId) ]]"
+          },
+          "outcomes": {
+            "true": "collapseRow",
+            "false": "expandRow"
+          }
+        },
+        "collapseRow": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.expandedRowId": {
+              "source": null
+            }
+          }
+        },
+        "expandRow": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.expandedRowId": {
+              "source": "{{ $chain.variables.rowId }}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "eventListeners": {
+    "vbEnter": {
+      "chains": [
+        {
+          "chainId": "LoadStylesChain"
+        },
+        {
+          "chainId": "loadRunsChain"
+        }
+      ]
+    },
+    "clickRow": {
+      "chains": [
+        {
+          "chainId": "ToggleRowChain",
+          "parameters": {
+            "rowId": "{{ $event.currentTarget.dataset.rowId }}"
+          }
+        }
+      ]
+    },
+    "clickTriggerValidation": {
+      "chains": [
+        {
+          "chainId": "triggerValidationChain"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "finding-review",
+  "description": "Flow main",
+  "defaultPage": "finding-review-start",
+  "services": {},
+  "types": {},
+  "variables": {}
+}

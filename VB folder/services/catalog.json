@@ -1,0 +1,20 @@
+{
+    "backends": {
+        "b": {
+            "servers": [
+                {
+                    "url": "http://172.105.152.7:8181",
+                    "description": "172.105.152.7"
+                }
+            ]
+        },
+        "BOM_ORDS_Backend": {
+            "servers": [
+                {
+                    "url": "http://172.105.152.7:8181/ords/bom",
+                    "description": "172.105.152.7"
+                }
+            ]
+        }
+      }
+}

@@ -1,0 +1,7 @@
+{
+  "rule_name": "Sample",
+  "severity": "HIGH",
+  "description": "Sample",
+  "threshold_or_configuration": "Sample",
+  "enabled_flag": "Y"
+}

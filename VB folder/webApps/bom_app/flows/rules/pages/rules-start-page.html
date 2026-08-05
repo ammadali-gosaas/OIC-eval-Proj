@@ -1,0 +1,217 @@
+<div class="p-6 md:p-8 space-y-6 bg-slate-50 text-base text-slate-800 min-h-screen font-sans w-full relative">
+
+  <section>
+    <!-- Header and Admin Buttons -->
+    <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+      <div>
+        <h2 class="text-3xl font-black mb-1 text-slate-900">Readable Rule Engine Metadata</h2>
+        <p class="text-slate-600 font-medium text-base">Transparent dictionary of active deterministic thresholds and validation logic mappings.</p>
+      </div>
+      <div class="flex gap-3 items-center">
+        <button on-click="[[ $listeners.clickOpenSchedule ]]" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-sm transition-all hover:bg-emerald-700 shadow-sm">
+          Run Scheduled Validation
+        </button>
+        <button on-click="[[ $listeners.clickOpenAddRule ]]" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-black text-sm transition-all hover:bg-slate-800 shadow-sm">
+          + Add New Logic Rule
+        </button>
+      </div>
+    </div>
+
+    <!-- DYNAMIC GRID OF CARDS -->
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <oj-bind-for-each data="[[ $variables.rulesSdp ]]">
+        <template>
+          <!-- Individual Rule Card -->
+          <div class="bg-white border border-slate-200 rounded-[20px] shadow-[0_12px_28px_rgba(15,23,42,.07)] p-6 flex flex-col h-full hover:-translate-y-1 transition-transform duration-300">
+            <div class="flex justify-between gap-3 items-start mb-3">
+              <div>
+                <b class="text-xl text-slate-900 font-black">
+                  <oj-bind-text value="[[ $current.data.rule_name ]]"></oj-bind-text>
+                </b>
+                <div class="text-xs font-black text-slate-500 mt-1.5 tracking-widest bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200 shadow-sm">
+                  <oj-bind-text value="[[ $current.data.rule_code ]]"></oj-bind-text>
+                </div>
+              </div>
+              
+              <div class="flex flex-col items-end gap-2">
+                <!-- Dynamic Severity Pill -->
+                <span :class="[[ 'inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide shadow-sm border border-transparent ' + ($current.data.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800' : ($current.data.severity === 'HIGH' ? 'bg-orange-100 text-orange-800' : ($current.data.severity === 'WARNING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'))) ]]">
+                  <oj-bind-text value="[[ $current.data.severity ]]"></oj-bind-text>
+                </span>
+                
+                <!-- Action Links (Edit | Delete) -->
+                <div class="flex items-center gap-2">
+                  <button on-click="[[ $listeners.clickOpenEditRule ]]" 
+                          :data-rule-id="[[ $current.data.rule_id ]]"
+                          :data-rule-code="[[ $current.data.rule_code ]]"
+                          :data-rule-name="[[ $current.data.rule_name ]]"
+                          :data-severity="[[ $current.data.severity ]]"
+                          :data-description="[[ $current.data.description ]]"
+                          :data-threshold="[[ $current.data.threshold_or_configuration ]]"
+                          :data-enabled="[[ $current.data.enabled_flag || 'Y' ]]"
+                          class="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-800 underline underline-offset-2">
+                    Edit
+                  </button>
+                  <span class="text-slate-300 text-xs">|</span>
+                  <button on-click="[[ $listeners.clickOpenDeleteRule ]]" 
+                          :data-rule-code="[[ $current.data.rule_code ]]"
+                          :data-rule-name="[[ $current.data.rule_name ]]"
+                          class="text-[10px] font-bold uppercase tracking-wider text-rose-500 hover:text-rose-700 underline underline-offset-2">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Description -->
+            <p class="text-base text-slate-700 mt-2 mb-5 leading-relaxed flex-1">
+              <oj-bind-text value="[[ $current.data.description ]]"></oj-bind-text>
+            </p>
+            
+            <!-- Configuration Box -->
+            <div class="rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm text-slate-800 font-medium shadow-inner">
+              <div class="flex justify-between items-start mb-1">
+                <b class="text-slate-900 font-black uppercase text-[10px] tracking-wider">Engine Threshold/Configuration:</b>
+                <oj-bind-if test="[[ $current.data.enabled_flag === 'N' ]]">
+                  <span class="text-[10px] font-bold text-rose-600 uppercase tracking-widest bg-rose-100 px-1.5 py-0.5 rounded">Disabled</span>
+                </oj-bind-if>
+              </div>
+              <oj-bind-text value="[[ $current.data.threshold_or_configuration || '—' ]]"></oj-bind-text>
+            </div>
+          </div>
+        </template>
+      </oj-bind-for-each>
+    </div>
+  </section>
+
+  <!-- ADD RULE MODAL -->
+  <oj-bind-if test="[[ $variables.isAddRuleModalOpen ]]">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity">
+      <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-lg">
+        <h3 class="text-2xl font-black mb-2 text-slate-900">Add New Rule</h3>
+        <p class="text-slate-500 mb-6 text-sm">Create a custom deterministic validation check.</p>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">Rule Code</label>
+              <input type="text" value="[[ $variables.newRuleCode ]]" on-input="[[ function(e) { $variables.newRuleCode = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" placeholder="e.g. CUST-01">
+            </div>
+            <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">Severity</label>
+              <select value="[[ $variables.newRuleSeverity ]]" on-change="[[ function(e) { $variables.newRuleSeverity = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="WARNING">Warning</option>
+                  <option value="INFO">Info</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Rule Name</label>
+            <input type="text" value="[[ $variables.newRuleName ]]" on-input="[[ function(e) { $variables.newRuleName = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" placeholder="e.g. Missing Material Code">
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
+            <textarea value="[[ $variables.newRuleDescription ]]" on-input="[[ function(e) { $variables.newRuleDescription = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" rows="3" placeholder="Rule explanation..."></textarea>
+          </div>
+        </div>
+        <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+          <button on-click="[[ $listeners.clickCloseAddRule ]]" class="px-6 py-3 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm shadow-sm">Cancel</button>
+          <button on-click="[[ $listeners.clickSubmitAddRule ]]" class="px-6 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors text-sm shadow-sm">Save Rule</button>
+        </div>
+      </div>
+    </div>
+  </oj-bind-if>
+
+  <!-- EDIT RULE MODAL -->
+  <oj-bind-if test="[[ $variables.isEditRuleModalOpen ]]">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity">
+      <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-lg">
+        <h3 class="text-2xl font-black mb-2 text-slate-900">Edit Rule</h3>
+        <p class="text-slate-500 mb-6 text-sm font-mono"><oj-bind-text value="[[ $variables.editRuleCode ]]"></oj-bind-text></p>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">Severity</label>
+              <select value="[[ $variables.editRuleSeverity ]]" on-change="[[ function(e) { $variables.editRuleSeverity = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="WARNING">Warning</option>
+                  <option value="INFO">Info</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">Status</label>
+              <select value="[[ $variables.editRuleEnabled ]]" on-change="[[ function(e) { $variables.editRuleEnabled = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                  <option value="Y">Active</option>
+                  <option value="N">Disabled</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Rule Name</label>
+            <input type="text" value="[[ $variables.editRuleName ]]" on-input="[[ function(e) { $variables.editRuleName = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Threshold / Configuration</label>
+            <input type="text" value="[[ $variables.editRuleThreshold ]]" on-input="[[ function(e) { $variables.editRuleThreshold = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm font-mono text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
+            <textarea value="[[ $variables.editRuleDescription ]]" on-input="[[ function(e) { $variables.editRuleDescription = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+          <button on-click="[[ $listeners.clickCloseEditRule ]]" class="px-6 py-3 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm shadow-sm">Cancel</button>
+          <button on-click="[[ $listeners.clickSubmitEditRule ]]" class="px-6 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors text-sm shadow-sm">Update Rule</button>
+        </div>
+      </div>
+    </div>
+  </oj-bind-if>
+
+  <!-- DELETE RULE CONFIRMATION MODAL -->
+  <oj-bind-if test="[[ $variables.isDeleteRuleModalOpen ]]">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity">
+      <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md text-center">
+        <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 font-black text-xl">!</div>
+        <h3 class="text-xl font-black mb-2 text-slate-900">Delete Validation Rule?</h3>
+        <p class="text-slate-600 text-sm mb-6">Are you sure you want to delete <b class="text-slate-900"><oj-bind-text value="[[ $variables.deleteRuleCode ]]"></oj-bind-text> - <oj-bind-text value="[[ $variables.deleteRuleName ]]"></oj-bind-text></b>? This action cannot be undone.</p>
+        <div class="flex justify-center gap-3">
+          <button on-click="[[ $listeners.clickCloseDeleteRule ]]" class="px-5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm shadow-sm">Cancel</button>
+          <button on-click="[[ $listeners.clickSubmitDeleteRule ]]" class="px-5 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors text-sm shadow-sm">Yes, Delete</button>
+        </div>
+      </div>
+    </div>
+  </oj-bind-if>
+
+  <!-- SCHEDULE VALIDATION MODAL -->
+  <oj-bind-if test="[[ $variables.isScheduleModalOpen ]]">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity">
+      <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-lg">
+        <h3 class="text-2xl font-black mb-4 text-slate-900">Run Scheduled Validation</h3>
+        <div class="space-y-5 mt-6">
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-2">Select Run Time (UTC)</label>
+            <input type="time" value="[[ $variables.scheduleTime ]]" on-input="[[ function(e) { $variables.scheduleTime = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-3">Interval Configuration</label>
+            <div class="flex gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+              <label class="flex items-center gap-3 cursor-pointer text-base font-bold text-slate-800">
+                <input type="radio" name="interval" value="Daily" checked="[[ $variables.scheduleInterval === 'Daily' ]]" on-change="[[ function(e) { $variables.scheduleInterval = e.target.value; } ]]" class="w-5 h-5 accent-slate-900"> Daily
+              </label>
+              <label class="flex items-center gap-3 cursor-pointer text-base font-bold text-slate-800">
+                <input type="radio" name="interval" value="Weekly" checked="[[ $variables.scheduleInterval === 'Weekly' ]]" on-change="[[ function(e) { $variables.scheduleInterval = e.target.value; } ]]" class="w-5 h-5 accent-slate-900"> Weekly
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+          <button on-click="[[ $listeners.clickCloseSchedule ]]" class="px-6 py-3 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm shadow-sm">Close</button>
+          <button on-click="[[ $listeners.clickSubmitSchedule ]]" class="px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors text-sm shadow-sm">Save Schedule</button>
+        </div>
+      </div>
+    </div>
+  </oj-bind-if>
+
+</div>

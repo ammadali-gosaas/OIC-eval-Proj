@@ -1,0 +1,152 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "172.105.152.7",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "vb-catalog://backends/BOM_ORDS_Backend"
+        }
+    ],
+    "paths": {
+        "/dashboard": {
+            "get": {
+                "operationId": "getDashboard",
+                "responses": {
+                    "default": {
+                        "description": "Response for default",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetDashboard"
+                                },
+                                "examples": {
+                                    "vb": {
+                                        "summary": "Example stored by VB User",
+                                        "externalValue": "./examples/getDashboard/response_default_application_json_vb.json"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-vb": {
+                    "actionHint": "getMany"
+                }
+            }
+        },
+        "/boms": {
+            "get": {
+                "operationId": "getBoms",
+                "responses": {
+                    "default": {
+                        "description": "Response for default",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetBoms"
+                                },
+                                "examples": {
+                                    "vb": {
+                                        "summary": "Example stored by VB User",
+                                        "externalValue": "./examples/getBoms/response_default_application_json_vb.json"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-vb": {
+                    "actionHint": "getMany"
+                },
+                "parameters": []
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "GetDashboard": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "dashboard_json": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "GetBoms": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "bom_id": {
+                                    "type": "integer"
+                                },
+                                "organization_code": {
+                                    "type": "string"
+                                },
+                                "item_number": {
+                                    "type": "string"
+                                },
+                                "structure_name": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "item_class": {
+                                    "type": "string"
+                                },
+                                "health_score": {
+                                    "type": "integer"
+                                },
+                                "status_label": {
+                                    "type": "string"
+                                },
+                                "imported_at": {
+                                    "type": "string"
+                                },
+                                "component_count": {
+                                    "type": "integer"
+                                },
+                                "open_finding_count": {
+                                    "type": "integer"
+                                },
+                                "finding_severities": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "first": {
+                        "type": "object",
+                        "properties": {
+                            "$ref": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "next": {
+                        "type": "object",
+                        "properties": {
+                            "$ref": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

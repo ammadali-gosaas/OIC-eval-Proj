@@ -1,0 +1,98 @@
+{
+  "title": "Integration Logs",
+  "description": "Logs view — live diagnostic runs from BOMValidation/listDiagnosticRuns",
+  "variables": {
+    "logsList": {
+      "type": "any",
+      "defaultValue": []
+    }
+  },
+  "metadata": {},
+  "types": {},
+  "chains": {
+    "LoadStylesChain": {
+      "root": "callFunctionLoadTailwind",
+      "actions": {
+        "callFunctionLoadTailwind": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "loadTailwind"
+          },
+          "outcomes": {
+            "success": "loadLogs"
+          }
+        }
+      }
+    },
+    "loadLogsChain": {
+      "description": "Fetch diagnostic runs from BOMValidation/listDiagnosticRuns",
+      "root": "callListDiagnosticRuns",
+      "actions": {
+        "callListDiagnosticRuns": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/listDiagnosticRuns"
+          },
+          "outcomes": {
+            "success": "parseLogs",
+            "failure": "fireLoadError"
+          }
+        },
+        "parseLogs": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "setLogsData",
+            "params": [
+              "{{ $chain.results.callListDiagnosticRuns.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignLogs"
+          }
+        },
+        "assignLogs": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.logsList": {
+              "source": "{{ $chain.results.parseLogs }}",
+              "auto": "always"
+            }
+          }
+        },
+        "fireLoadError": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Failed to load diagnostic logs. Please try again.",
+            "type": "error",
+            "displayMode": "transient"
+          }
+        }
+      }
+    }
+  },
+  "eventListeners": {
+    "vbEnter": {
+      "chains": [
+        {
+          "chainId": "LoadStylesChain"
+        },
+        {
+          "chainId": "loadLogsChain"
+        }
+      ]
+    }
+  },
+  "imports": {
+    "components": {
+      "oj-bind-text": {
+        "path": "ojs/ojbindtext"
+      },
+      "oj-bind-for-each": {
+        "path": "ojs/ojbindforeach"
+      }
+    }
+  }
+}

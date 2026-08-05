@@ -1,0 +1,148 @@
+<div style="padding: 1.25rem; background-color: #f8fafc; font-family: system-ui, -apple-system, sans-serif;">
+  
+  <!-- Page Header -->
+  <div style="margin-bottom: 1.25rem;">
+    <h2 style="font-size: 1.75rem; font-weight: 900; color: #0f172a; margin: 0; line-height: 1.2;">Dashboard</h2>
+    <p style="color: #475569; margin: 0.25rem 0 0 0; font-size: 0.9375rem; font-weight: 500;">Core metrics, risky BOMs, and open issues.</p>
+  </div>
+
+  <!-- Row 1: 3-Column Executive Grid -->
+  <div style="display: flex; flex-direction: row; gap: 1rem; width: 100%; box-sizing: border-box; margin-bottom: 1.25rem;">
+    
+    <!-- Card 1: Issue Count by Severity -->
+    <div style="flex: 1; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.15rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+      <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="font-weight: 800; font-size: 1.125rem; color: #0f172a; margin: 0;">Issue Count by Severity</h3>
+          <span style="font-size: 0.75rem; color: #64748b;">Click row to filter table</span>
+        </div>
+        <button on-click="[[$listeners.resetFilter]]" style="font-size: 0.7rem; font-weight: 700; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.2rem 0.5rem; cursor: pointer;">
+          Reset Filter
+        </button>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 0.45rem; flex: 1; justify-content: center;">
+        
+        <!-- CRITICAL ROW -->
+        <div on-click="[[$listeners.filterCritical]]" 
+             :style.border="[[$variables.selectedFilter === 'CRITICAL' ? '2px solid #9f1239' : '1px solid #fecdd3']]"
+             :style.box-shadow="[[$variables.selectedFilter === 'CRITICAL' ? '0 0 0 2px rgba(159,18,57,0.2)' : 'none']]"
+             style="display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.75rem; background: #fff1f2; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+          <span style="font-weight: 700; font-size: 0.75rem; color: #9f1239;">CRITICAL</span>
+          <b style="font-size: 1.25rem; color: #0f172a;"><oj-bind-text value="[[$variables.dashboardData.critical]]"></oj-bind-text></b>
+        </div>
+
+        <!-- HIGH ROW -->
+        <div on-click="[[$listeners.filterHigh]]" 
+             :style.border="[[$variables.selectedFilter === 'HIGH' ? '2px solid #c2410c' : '1px solid #fed7aa']]"
+             :style.box-shadow="[[$variables.selectedFilter === 'HIGH' ? '0 0 0 2px rgba(194,65,12,0.2)' : 'none']]"
+             style="display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.75rem; background: #fff7ed; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+          <span style="font-weight: 700; font-size: 0.75rem; color: #c2410c;">HIGH</span>
+          <b style="font-size: 1.25rem; color: #0f172a;"><oj-bind-text value="[[$variables.dashboardData.high]]"></oj-bind-text></b>
+        </div>
+
+        <!-- WARNING ROW -->
+        <div on-click="[[$listeners.filterWarning]]" 
+             :style.border="[[$variables.selectedFilter === 'WARNING' ? '2px solid #b45309' : '1px solid #fde68a']]"
+             :style.box-shadow="[[$variables.selectedFilter === 'WARNING' ? '0 0 0 2px rgba(180,83,9,0.2)' : 'none']]"
+             style="display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.75rem; background: #fef3c7; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+          <span style="font-weight: 700; font-size: 0.75rem; color: #b45309;">WARNING</span>
+          <b style="font-size: 1.25rem; color: #0f172a;"><oj-bind-text value="[[$variables.dashboardData.warning]]"></oj-bind-text></b>
+        </div>
+
+        <!-- INFO ROW -->
+        <div on-click="[[$listeners.filterInfo]]" 
+             :style.border="[[$variables.selectedFilter === 'INFO' ? '2px solid #0f172a' : '1px solid #e2e8f0']]"
+             :style.box-shadow="[[$variables.selectedFilter === 'INFO' ? '0 0 0 2px rgba(15,23,42,0.2)' : 'none']]"
+             style="display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.75rem; background: #f1f5f9; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+          <span style="font-weight: 700; font-size: 0.75rem; color: #334155;">INFO</span>
+          <b style="font-size: 1.25rem; color: #0f172a;"><oj-bind-text value="[[$variables.dashboardData.info]]"></oj-bind-text></b>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Card 2: BOM Health by Item Class -->
+    <div style="flex: 1; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.15rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+      <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-weight: 800; font-size: 1.125rem; color: #0f172a; margin: 0;">BOM Health by Item Class</h3>
+        <button on-click="[[$listeners.toggleShowAllClasses]]" style="font-size: 0.75rem; font-weight: 700; color: #64748b; background: #f8fafc; padding: 0.2rem 0.4rem; border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer;">
+          <oj-bind-text value="[[$variables.showAllClasses ? 'Show Top 3' : 'View All Classes']]"></oj-bind-text>
+        </button>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1; justify-content: flex-start; overflow-y: auto; max-height: 220px; padding-right: 0.25rem;">
+        
+        <!-- DYNAMIC ITEM CLASS LOOP (Clean Expression) -->
+        <oj-bind-for-each data="[[$variables.dashboardData && $variables.dashboardData.itemClasses ? ($variables.showAllClasses ? $variables.dashboardData.itemClasses : $variables.dashboardData.itemClasses.slice(0, 3)) : []]]">
+          <template>
+            <div data-class-name="[[$current.data.name]]" on-click="[[$listeners.filterClassRow]]"
+              :style.border="[[ $variables.selectedFilter === $current.data.name ? '2px solid #2563eb' : '1px solid #f1f5f9' ]]"
+              :style.box-shadow="[[$variables.selectedFilter === $current.data.name ? '0 0 0 2px rgba(37,99,235,0.2)' : 'none']]"
+              style="background-color: #f8fafc; padding: 0.55rem 0.75rem; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.8125rem; margin-bottom: 0.25rem;">
+                <span style="font-weight: 800; color: #0f172a;"><oj-bind-text value="[[$current.data.name]]"></oj-bind-text></span>
+                <span style="font-weight: 900;" :style.color="[[$current.data.textColor]]"><oj-bind-text value="[[$current.data.riskLabel]]"></oj-bind-text></span>
+              </div>
+              <div style="width: 100%; background-color: #e2e8f0; border-radius: 9999px; height: 0.45rem; margin-bottom: 0.25rem; overflow: hidden;">
+                <div :style.background-color="[[$current.data.barColor]]" :style.width="[[$current.data.healthPct + '%']]" style="height: 0.45rem; border-radius: 9999px;"></div>
+              </div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 700;">
+                <oj-bind-text value="[[$current.data.risky + ' Risky / ' + $current.data.total + ' Total BOMs']]"></oj-bind-text>
+              </div>
+            </div>
+          </template>
+        </oj-bind-for-each>
+
+      </div>
+    </div>
+
+    <!-- Card 3: Open Issues Callout -->
+    <div on-click="[[$listeners.goToFindingReview]]" 
+         style="flex: 1; min-width: 0; background: #0f172a; border-radius: 16px; padding: 1.15rem; color: #ffffff; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); position: relative; overflow: hidden;">
+      <h3 style="font-weight: 800; font-size: 1.25rem; color: #f8fafc; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; position: relative; z-index: 10;">
+        Open Issues to Review
+        <svg width="20" height="20" fill="none" stroke="#f59e0b" viewBox="0 0 24 24" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+      </h3>
+      <div style="font-size: 4rem; font-weight: 900; color: #f59e0b; line-height: 1; position: relative; z-index: 10;">
+        <oj-bind-text value="[[$variables.dashboardData.openFindings]]"></oj-bind-text>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: Table Workspace -->
+  <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="margin-bottom: 1rem;">
+      <h3 style="font-weight: 800; font-size: 1.25rem; color: #0f172a; margin: 0;">Top Risky BOMs & Total Health</h3>
+      <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.2rem;">Ordered by lowest health score / highest priority issue.</p>
+    </div>
+
+    <!-- Table Workspace -->
+    <oj-table 
+      id="bomsTable" 
+      aria-label="Risky BOMs Table"
+      style="width: 100%; min-height: 380px;"
+      data="[[$page.functions.getBomsADP()]]"
+      columns='[
+        {"headerText": "BOM Number", "field": "item_number"},
+        {"headerText": "Org", "field": "organization_code"},
+        {"headerText": "Health Score", "field": "health_score"},
+        {"headerText": "Open Issues", "field": "open_finding_count"},
+        {"headerText": "Status", "field": "status_label"}
+      ]'
+      selection-mode='{"row": "single"}'
+      on-first-selected-row-changed="[[$listeners.onRowSelect]]">
+    </oj-table>
+
+    <!-- Pagination Control (Accessibility Fix Added) -->
+    <oj-paging-control 
+      id="paging" 
+      aria-label="Pagination Control"
+      data="[[$page.functions.getBomsADP()]]" 
+      page-size="10"
+      style="width: 100%; margin-top: 0.75rem; border-top: 1px solid #f1f5f9; padding-top: 0.5rem;">
+    </oj-paging-control>
+  </div>
+
+</div>

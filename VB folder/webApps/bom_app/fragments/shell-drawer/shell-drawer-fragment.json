@@ -1,0 +1,61 @@
+{
+  "title": "Shell Drawer",
+  "eventListeners": {
+    "onNavigation": {
+      "chains": [
+        {
+          "chain": "navigationHandler",
+          "parameters": {
+            "item": "{{ $event.detail.value }}",
+            "updatedFrom": "{{ $event.detail.updatedFrom }}"
+          }
+        }
+      ]
+    },
+    "onThemeValueChanged": {
+      "chains": [
+        {
+          "parameters": {
+            "value": "[[ $event.detail.value ]]"
+          },
+          "chain": "themeValueChangeHandler"
+        }
+      ]
+    }
+  },
+  "events": {},
+  "imports": {
+    "components": {
+      "oj-avatar": {
+        "path": "ojs/ojavatar"
+      },
+      "oj-button": {
+        "path": "ojs/ojbutton"
+      },
+      "oj-buttonset-one": {
+        "path": "ojs/ojbutton"
+      },
+      "oj-navigation-list": {
+        "path": "ojs/ojnavigationlist"
+      },
+      "oj-option": {
+        "path": "ojs/ojoption"
+      },
+      "oj-popup": {
+        "path": "ojs/ojpopup"
+      }
+    },
+    "css": [
+      "/resources/css/shell.css"
+    ]
+  },
+  "metadata": {},
+  "types": {},
+  "variables": {
+    "currentFlow": {
+      "type": "string",
+      "input": "fromCaller",
+      "defaultValue": "[[ $application.variables.navigationData[0].id ]]"
+    }
+  }
+}

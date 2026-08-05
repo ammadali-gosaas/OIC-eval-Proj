@@ -1,0 +1,8 @@
+{
+  "id": "rules",
+  "description": "Flow main",
+  "defaultPage": "rules-start",
+  "services": {},
+  "types": {},
+  "variables": {}
+}

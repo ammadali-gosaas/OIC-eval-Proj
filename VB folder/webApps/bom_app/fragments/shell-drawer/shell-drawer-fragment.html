@@ -1,0 +1,71 @@
+<div class="oj-contrast-marker vb-nav-drawer">
+  <oj-button
+    class="oj-md-hide vb-nav-drawer-close-button oj-sm-float-end oj-sm-margin-3x-top"
+    display="icons"
+    chroming="borderless"
+    on-oj-action="[[$fragment.functions.closeDrawer]]">
+    <span slot="startIcon" class="oj-ux-ico-close"></span>
+    <span><oj-bind-text value="Close"></oj-bind-text></span>
+  </oj-button>
+  <div class="oj-md-hide oj-flex oj-sm-flex-direction-column oj-sm-flex-wrap-nowrap oj-sm-align-items-center oj-sm-margin-6x-vertical">
+    <oj-avatar id="drawer-avatar" role="img"  icon-class="oj-ux-ico-contact" size="md" background="orange"
+               :aria-label="[[ $application.user.fullName ]]" :title="[[ $application.user.fullName ]]">
+    </oj-avatar>
+    <div class="oj-typography-body-lg">
+      <oj-bind-text value="[[ $application.user.fullName ]]"></oj-bind-text>
+    </div>
+  </div>
+  <oj-navigation-list  on-click="[[$application.responsive.smOnly ? $fragment.functions.closeDrawer : undefined]]"
+                       on-selection-changed="[[$listeners.onNavigation]]" data="[[ $application.variables.navigationADP ]]"
+                       selection="{{ $variables.currentFlow }}">
+    <template slot="itemTemplate">
+      <li>
+        <a href="#">
+          <span :class="[['oj-navigationlist-item-icon oj-typography-body-md oj-sm-padding-3x-horizontal ' + $current.data.iconClass]]"></span>
+          <oj-bind-text value="[[$current.data.name]]"></oj-bind-text>
+        </a>
+      </li>
+    </template>
+  </oj-navigation-list>
+
+  <hr class="oj-md-hide">
+  <!-- Global header toolbar items moved to the offcanvas for phones -->
+ <div class="oj-md-hide" on-click="[[$fragment.functions.closeDrawer]]">
+    <oj-bind-for-each data="[[ $application.variables.globalHeadersADP ]]">
+      <template>
+        <div>
+          <oj-button chroming="borderless" class="oj-sm-flex-0 oj-sm-padding-3x-horizontal" label="[[ $current.data.name ]]" >
+            <span :class="[[ 'oj-navigationlist-item-icon oj-typography-body-md ' + $current.data.iconClass ]]" slot="startIcon"></span>
+          </oj-button>
+        </div>
+      </template>
+    </oj-bind-for-each>
+  </div>
+  <hr class="oj-md-hide">
+  <oj-bind-if test="[[ $application.constants.themeChangeUI === 'on' ]]">
+    <div class="oj-md-hide oj-text-color-primary oj-sm-margin-8x-start oj-sm-margin-2x-vertical" role="text">
+      <oj-bind-text value="[[$application.translations.app.app_theme]]">
+      </oj-bind-text>
+    </div>
+    <oj-buttonset-one value="{{ $application.variables.currentTheme }}"
+      class="oj-md-hide oj-sm-margin-8x-start oj-choice-direction-row"
+      on-value-changed="[[$listeners.onThemeValueChanged]]">
+      <oj-option value="light"><span><oj-bind-text value="[[$application.translations.app.app_theme_light]]"></oj-bind-text></span></oj-option>
+      <oj-option value="dark"><span><oj-bind-text value="[[$application.translations.app.app_theme_dark]]"></oj-bind-text></span></oj-option>
+      <oj-option value="os"><span><oj-bind-text value="[[$application.translations.app.app_theme_os]]"></oj-bind-text></span></oj-option>
+    </oj-buttonset-one>
+    <hr class="oj-md-hide">
+  </oj-bind-if>
+  <!-- Avatar menu items moved to the offcanvas for phones -->
+  <div class="oj-md-hide" on-click="[[$fragment.functions.closeDrawer]]">
+      <oj-bind-for-each data="[[$application.variables.avatarItemsADP]]">
+        <template >
+          <div>
+            <oj-button chroming="borderless" class="oj-sm-flex-0 oj-sm-padding-3x-horizontal" label="[[ $current.data.name ]]">
+              <span :class="[[ 'oj-navigationlist-item-icon oj-typography-body-md ' + $current.data.iconClass ]]" slot="startIcon"></span>
+            </oj-button>
+          </div>
+        </template>
+      </oj-bind-for-each>
+  </div>
+</div>

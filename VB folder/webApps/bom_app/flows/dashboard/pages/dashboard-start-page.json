@@ -1,0 +1,402 @@
+{
+  "title": "Landing Dashboard",
+  "description": "BOM Dashboard Exploration",
+  "variables": {
+    "selectedFilter": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "showAllClasses": {
+      "type": "boolean",
+      "defaultValue": false
+    },
+    "dashboardData": {
+      "type": "object",
+      "defaultValue": {
+        "totalBoms": 0,
+        "healthyBoms": 0,
+        "riskyBoms": 0,
+        "openFindings": 0,
+        "critical": 0,
+        "high": 0,
+        "warning": 0,
+        "info": 0,
+        "itemClasses": []
+      }
+    }
+  },
+  "eventListeners": {
+    "vbEnter": {
+      "chains": [
+        {
+          "chainId": "loadDashboardMetrics"
+        }
+      ]
+    },
+    "goToFindingReview": {
+      "chains": [
+        {
+          "chainId": "navToFindingReview"
+        }
+      ]
+    },
+    "filterCritical": {
+      "chains": [
+        {
+          "chainId": "filterCriticalChain"
+        }
+      ]
+    },
+    "filterHigh": {
+      "chains": [
+        {
+          "chainId": "filterHighChain"
+        }
+      ]
+    },
+    "filterWarning": {
+      "chains": [
+        {
+          "chainId": "filterWarningChain"
+        }
+      ]
+    },
+    "filterInfo": {
+      "chains": [
+        {
+          "chainId": "filterInfoChain"
+        }
+      ]
+    },
+    "toggleShowAllClasses": {
+      "chains": [
+        {
+          "chainId": "toggleShowAllClassesChain"
+        }
+      ]
+    },
+    "filterClassRow": {
+      "chains": [
+        {
+          "chainId": "filterByClassChain",
+          "parameters": {
+            "itemClass": "{{ $current.data.name }}"
+          }
+        }
+      ]
+    },
+    "resetFilter": {
+      "chains": [
+        {
+          "chainId": "resetFilterChain"
+        }
+      ]
+    },
+    "onRowSelect": {
+      "chains": [
+        {
+          "chainId": "navToBomDetail",
+          "parameters": {
+            "event": "{{ $event }}"
+          }
+        }
+      ]
+    }
+  },
+  "chains": {
+    "loadDashboardMetrics": {
+      "description": "Fetch live ORDS dashboard REST payload and BOM list",
+      "root": "callDashboardREST",
+      "actions": {
+        "callDashboardREST": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOM_ORDS_API/getDashboard"
+          },
+          "outcomes": {
+            "success": "callParseFunc",
+            "failure": "fireNotification"
+          }
+        },
+        "callParseFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseDashboardResponse",
+            "params": [
+              "{{ $chain.results.callDashboardREST.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignDashboardData"
+          }
+        },
+        "assignDashboardData": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.dashboardData": {
+              "source": "{{ $chain.results.callParseFunc }}",
+              "auto": "always"
+            }
+          },
+          "outcomes": {
+            "success": "callBomsREST"
+          }
+        },
+        "callBomsREST": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOM_ORDS_API/getBoms"
+          },
+          "outcomes": {
+            "success": "callSetBomsData",
+            "failure": "fireNotification2"
+          }
+        },
+        "callSetBomsData": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "setBomsData",
+            "params": [
+              "{{ $chain.results.callBomsREST.body }}"
+            ]
+          }
+        },
+        "fireNotification": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "[[ $chain.results.callDashboardREST.message.summary ]]",
+            "type": "error",
+            "displayMode": "persist"
+          }
+        },
+        "fireNotification2": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "[[ $chain.results.callBomsREST.message.summary ]]",
+            "type": "error",
+            "displayMode": "persist"
+          }
+        }
+      }
+    },
+    "filterCriticalChain": {
+      "root": "callFilterFunc",
+      "actions": {
+        "callFilterFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "filterBySeverity",
+            "params": [
+              "CRITICAL"
+            ]
+          },
+          "outcomes": {
+            "success": "setSelected"
+          }
+        },
+        "setSelected": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.selectedFilter": {
+              "source": "{{ $chain.results.callFilterFunc }}"
+            }
+          }
+        }
+      }
+    },
+    "filterHighChain": {
+      "root": "callFilterFunc",
+      "actions": {
+        "callFilterFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "filterBySeverity",
+            "params": [
+              "HIGH"
+            ]
+          },
+          "outcomes": {
+            "success": "setSelected"
+          }
+        },
+        "setSelected": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.selectedFilter": {
+              "source": "{{ $chain.results.callFilterFunc }}"
+            }
+          }
+        }
+      }
+    },
+    "filterWarningChain": {
+      "root": "callFilterFunc",
+      "actions": {
+        "callFilterFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "filterBySeverity",
+            "params": [
+              "WARNING"
+            ]
+          },
+          "outcomes": {
+            "success": "setSelected"
+          }
+        },
+        "setSelected": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.selectedFilter": {
+              "source": "{{ $chain.results.callFilterFunc }}"
+            }
+          }
+        }
+      }
+    },
+    "filterInfoChain": {
+      "root": "callFilterFunc",
+      "actions": {
+        "callFilterFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "filterBySeverity",
+            "params": [
+              "INFO"
+            ]
+          },
+          "outcomes": {
+            "success": "setSelected"
+          }
+        },
+        "setSelected": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.selectedFilter": {
+              "source": "{{ $chain.results.callFilterFunc }}"
+            }
+          }
+        }
+      }
+    },
+    "toggleShowAllClassesChain": {
+      "root": "toggleVar",
+      "actions": {
+        "toggleVar": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.showAllClasses": {
+              "source": "{{ !$page.variables.showAllClasses }}"
+            }
+          }
+        }
+      }
+    },
+    "filterByClassChain": {
+      "description": "Filters BOM table by Item Class",
+      "variables": {
+        "itemClass": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "callFilterFunc",
+      "actions": {
+        "callFilterFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "filterByItemClass",
+            "params": [
+              "{{ $chain.variables.itemClass }}"
+            ]
+          },
+          "outcomes": {
+            "success": "setSelected"
+          }
+        },
+        "setSelected": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.selectedFilter": {
+              "source": "{{ $chain.results.callFilterFunc }}"
+            }
+          }
+        }
+      }
+    },
+    "resetFilterChain": {
+      "root": "callResetFunc",
+      "actions": {
+        "callResetFunc": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "clearSeverityFilter"
+          },
+          "outcomes": {
+            "success": "setSelected"
+          }
+        },
+        "setSelected": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.selectedFilter": {
+              "source": "{{ $chain.results.callResetFunc }}"
+            }
+          }
+        }
+      }
+    },
+    "navToFindingReview": {
+      "description": "Navigate to Finding Review flow",
+      "root": "navigateToFindingReview",
+      "actions": {
+        "navigateToFindingReview": {
+          "module": "vb/action/builtin/navigateAction",
+          "parameters": {
+            "target": "parent",
+            "flow": "finding-review"
+          },
+          "@dt": {
+            "targetType": "flow"
+          }
+        }
+      }
+    },
+    "navToBomDetail": {
+      "description": "Navigate to BOM Detail flow",
+      "root": "navigateToBomDetail",
+      "actions": {
+        "navigateToBomDetail": {
+          "module": "vb/action/builtin/navigateAction",
+          "parameters": {
+            "target": "parent",
+            "flow": "bom-detail"
+          },
+          "@dt": {
+            "targetType": "flow"
+          }
+        }
+      }
+    }
+  },
+  "imports": {
+    "components": {
+      "oj-table": {
+        "path": "ojs/ojtable"
+      },
+      "oj-paging-control": {
+        "path": "ojs/ojpagingcontrol"
+      }
+    }
+  }
+}

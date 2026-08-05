@@ -1,0 +1,289 @@
+{
+  "title": "Validation Rules",
+  "description": "Readable active rule metadata and thresholds",
+  "variables": {
+    "rulesSdp": {
+      "type": "vb/ServiceDataProvider",
+      "defaultValue": {
+        "endpoint": "BOMValidation/listRules",
+        "keyAttributes": "rule_id",
+        "itemsPath": "items"
+      }
+    },
+    "isAddRuleModalOpen": { "type": "boolean", "defaultValue": false },
+    "isScheduleModalOpen": { "type": "boolean", "defaultValue": false },
+    "isEditRuleModalOpen": { "type": "boolean", "defaultValue": false },
+    "isDeleteRuleModalOpen": { "type": "boolean", "defaultValue": false },
+    "newRuleCode": { "type": "string" },
+    "newRuleName": { "type": "string" },
+    "newRuleDescription": { "type": "string" },
+    "newRuleSeverity": { "type": "string", "defaultValue": "CRITICAL" },
+    "scheduleTime": { "type": "string" },
+    "scheduleInterval": { "type": "string", "defaultValue": "Daily" },
+    "editRuleId": { "type": "number" },
+    "editRuleCode": { "type": "string" },
+    "editRuleName": { "type": "string" },
+    "editRuleDescription": { "type": "string" },
+    "editRuleSeverity": { "type": "string" },
+    "editRuleThreshold": { "type": "string" },
+    "editRuleEnabled": { "type": "string", "defaultValue": "Y" },
+    "deleteRuleCode": { "type": "string" },
+    "deleteRuleName": { "type": "string" }
+  },
+  "metadata": {},
+  "types": {},
+  "chains": {
+    "LoadStylesChain": {
+      "root": "callFunctionLoadTailwind",
+      "actions": {
+        "callFunctionLoadTailwind": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": { "module": "[[ $functions ]]", "functionName": "loadTailwind" }
+        }
+      }
+    },
+    "OpenAddRuleModalChain": {
+      "root": "openModal",
+      "actions": {
+        "openModal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isAddRuleModalOpen": { "source": true },
+            "$page.variables.newRuleCode": { "source": "" },
+            "$page.variables.newRuleName": { "source": "" },
+            "$page.variables.newRuleDescription": { "source": "" },
+            "$page.variables.newRuleSeverity": { "source": "CRITICAL" }
+          }
+        }
+      }
+    },
+    "CloseAddRuleModalChain": {
+      "root": "closeModal",
+      "actions": {
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isAddRuleModalOpen": { "source": false } } }
+      }
+    },
+    "SubmitAddRuleChain": {
+      "root": "callCreateRuleApi",
+      "actions": {
+        "callCreateRuleApi": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/createRule",
+            "body": {
+              "rule_code": "{{ $page.variables.newRuleCode }}",
+              "rule_name": "{{ $page.variables.newRuleName }}",
+              "description": "{{ $page.variables.newRuleDescription }}",
+              "severity": "{{ $page.variables.newRuleSeverity }}",
+              "threshold_or_configuration": "Prototype Rule"
+            }
+          },
+          "outcomes": { "success": "refreshRulesList", "failure": "fireErrorNotification" }
+        },
+        "refreshRulesList": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": { "target": "[[ $page.variables.rulesSdp ]]", "refresh": null },
+          "outcomes": { "success": "closeModal" }
+        },
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isAddRuleModalOpen": { "source": false } } },
+        "fireErrorNotification": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": { "summary": "Save Failed", "message": "The Add Rule request failed.", "type": "error" }
+        }
+      }
+    },
+    "OpenScheduleModalChain": {
+      "root": "openModal",
+      "actions": {
+        "openModal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isScheduleModalOpen": { "source": true },
+            "$page.variables.scheduleTime": { "source": "07:00" },
+            "$page.variables.scheduleInterval": { "source": "Daily" }
+          }
+        }
+      }
+    },
+    "CloseScheduleModalChain": {
+      "root": "closeModal",
+      "actions": {
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isScheduleModalOpen": { "source": false } } }
+      }
+    },
+    "SubmitScheduleChain": {
+      "root": "callCreateScheduleApi",
+      "actions": {
+        "callCreateScheduleApi": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/createSchedule",
+            "body": { "time": "{{ $page.variables.scheduleTime }}", "interval": "{{ $page.variables.scheduleInterval }}" }
+          },
+          "outcomes": { "success": "closeModal", "failure": "fireErrorNotification" }
+        },
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isScheduleModalOpen": { "source": false } } },
+        "fireErrorNotification": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": { "summary": "Schedule Failed", "message": "The Schedule request failed.", "type": "error" }
+        }
+      }
+    },
+    "OpenEditRuleModalChain": {
+      "variables": {
+        "ruleId": { "type": "number", "input": "fromCaller" },
+        "ruleCode": { "type": "string", "input": "fromCaller" },
+        "ruleName": { "type": "string", "input": "fromCaller" },
+        "description": { "type": "string", "input": "fromCaller" },
+        "severity": { "type": "string", "input": "fromCaller" },
+        "threshold": { "type": "string", "input": "fromCaller" },
+        "enabledFlag": { "type": "string", "input": "fromCaller" }
+      },
+      "root": "openModal",
+      "actions": {
+        "openModal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isEditRuleModalOpen": { "source": true },
+            "$page.variables.editRuleId": { "source": "{{ $chain.variables.ruleId }}" },
+            "$page.variables.editRuleCode": { "source": "{{ $chain.variables.ruleCode }}" },
+            "$page.variables.editRuleName": { "source": "{{ $chain.variables.ruleName }}" },
+            "$page.variables.editRuleDescription": { "source": "{{ $chain.variables.description }}" },
+            "$page.variables.editRuleSeverity": { "source": "{{ $chain.variables.severity }}" },
+            "$page.variables.editRuleThreshold": { "source": "{{ $chain.variables.threshold }}" },
+            "$page.variables.editRuleEnabled": { "source": "{{ $chain.variables.enabledFlag }}" }
+          }
+        }
+      }
+    },
+    "CloseEditRuleModalChain": {
+      "root": "closeModal",
+      "actions": {
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isEditRuleModalOpen": { "source": false } } }
+      }
+    },
+    "SubmitEditRuleChain": {
+      "root": "callUpdateRuleApi",
+      "actions": {
+        "callUpdateRuleApi": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/updateRule",
+            "uriParams": { "rule_id": "[[ $page.variables.editRuleId ]]" },
+            "body": {
+              "rule_name": "{{ $page.variables.editRuleName }}",
+              "description": "{{ $page.variables.editRuleDescription }}",
+              "severity": "{{ $page.variables.editRuleSeverity }}",
+              "threshold_or_configuration": "{{ $page.variables.editRuleThreshold }}",
+              "enabled_flag": "{{ $page.variables.editRuleEnabled }}"
+            }
+          },
+          "outcomes": { "success": "refreshRulesList", "failure": "fireErrorNotification" }
+        },
+        "refreshRulesList": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": { "target": "[[ $page.variables.rulesSdp ]]", "refresh": null },
+          "outcomes": { "success": "closeModal" }
+        },
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isEditRuleModalOpen": { "source": false } } },
+        "fireErrorNotification": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": { "summary": "Update Failed", "message": "The Edit request failed.", "type": "error" }
+        }
+      }
+    },
+    "OpenDeleteRuleModalChain": {
+      "variables": {
+        "ruleCode": { "type": "string", "input": "fromCaller" },
+        "ruleName": { "type": "string", "input": "fromCaller" }
+      },
+      "root": "openModal",
+      "actions": {
+        "openModal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isDeleteRuleModalOpen": { "source": true },
+            "$page.variables.deleteRuleCode": { "source": "{{ $chain.variables.ruleCode }}" },
+            "$page.variables.deleteRuleName": { "source": "{{ $chain.variables.ruleName }}" }
+          }
+        }
+      }
+    },
+    "CloseDeleteRuleModalChain": {
+      "root": "closeModal",
+      "actions": {
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isDeleteRuleModalOpen": { "source": false } } }
+      }
+    },
+    "SubmitDeleteRuleChain": {
+      "root": "callDeleteRuleApi",
+      "actions": {
+        "callDeleteRuleApi": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/deleteRule",
+            "uriParams": { "rule_code": "[[ $page.variables.deleteRuleCode ]]" }
+          },
+          "outcomes": { "success": "refreshRulesList", "failure": "fireErrorNotification" }
+        },
+        "refreshRulesList": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": { "target": "[[ $page.variables.rulesSdp ]]", "refresh": null },
+          "outcomes": { "success": "closeModal" }
+        },
+        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isDeleteRuleModalOpen": { "source": false } } },
+        "fireErrorNotification": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": { "summary": "Delete Failed", "message": "The Delete Rule request failed.", "type": "error" }
+        }
+      }
+    }
+  },
+  "eventListeners": {
+    "vbEnter": { "chains": [ { "chainId": "LoadStylesChain" } ] },
+    "clickOpenAddRule": { "chains": [ { "chainId": "OpenAddRuleModalChain" } ] },
+    "clickCloseAddRule": { "chains": [ { "chainId": "CloseAddRuleModalChain" } ] },
+    "clickSubmitAddRule": { "chains": [ { "chainId": "SubmitAddRuleChain" } ] },
+    "clickOpenSchedule": { "chains": [ { "chainId": "OpenScheduleModalChain" } ] },
+    "clickCloseSchedule": { "chains": [ { "chainId": "CloseScheduleModalChain" } ] },
+    "clickSubmitSchedule": { "chains": [ { "chainId": "SubmitScheduleChain" } ] },
+    "clickOpenEditRule": { 
+      "chains": [ 
+        { 
+          "chainId": "OpenEditRuleModalChain", 
+          "parameters": { 
+            "ruleId": "{{ $event.currentTarget.dataset.ruleId }}",
+            "ruleCode": "{{ $event.currentTarget.dataset.ruleCode }}",
+            "ruleName": "{{ $event.currentTarget.dataset.ruleName }}",
+            "description": "{{ $event.currentTarget.dataset.description }}",
+            "severity": "{{ $event.currentTarget.dataset.severity }}",
+            "threshold": "{{ $event.currentTarget.dataset.threshold }}",
+            "enabledFlag": "{{ $event.currentTarget.dataset.enabled }}"
+          } 
+        } 
+      ] 
+    },
+    "clickCloseEditRule": { "chains": [ { "chainId": "CloseEditRuleModalChain" } ] },
+    "clickSubmitEditRule": { "chains": [ { "chainId": "SubmitEditRuleChain" } ] },
+    "clickOpenDeleteRule": {
+      "chains": [
+        {
+          "chainId": "OpenDeleteRuleModalChain",
+          "parameters": {
+            "ruleCode": "{{ $event.currentTarget.dataset.ruleCode }}",
+            "ruleName": "{{ $event.currentTarget.dataset.ruleName }}"
+          }
+        }
+      ]
+    },
+    "clickCloseDeleteRule": { "chains": [ { "chainId": "CloseDeleteRuleModalChain" } ] },
+    "clickSubmitDeleteRule": { "chains": [ { "chainId": "SubmitDeleteRuleChain" } ] }
+  },
+  "imports": {
+    "components": {
+      "oj-bind-text": { "path": "ojs/ojbindtext" },
+      "oj-bind-for-each": { "path": "ojs/ojbindforeach" },
+      "oj-bind-if": { "path": "ojs/ojbindif" }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+<div class="p-6 md:p-8 space-y-6 bg-[#f8fafc] text-base text-slate-800 min-h-screen font-sans w-full">
+  
+  <!-- Page Header -->
+  <div>
+    <h2 class="text-3xl font-black text-slate-900 mb-1">Integration Logs</h2>
+    <p class="text-slate-600 text-base font-medium">Redacted backend operational diagnostics traceable by exact correlation ID.</p>
+  </div>
+
+  <!-- Logs Data Table -->
+  <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <div class="min-w-[1000px] flex flex-col w-full text-sm text-left">
+        
+        <!-- Headers (Adjusted percentages for better spacing) -->
+        <div class="flex items-stretch bg-slate-50 border-b border-slate-200">
+          <div class="p-4 w-[25%] font-bold text-slate-500 uppercase tracking-wider text-[10px]">Correlation ID Trace</div>
+          <div class="p-4 w-[15%] font-bold text-slate-500 uppercase tracking-wider text-[10px]">Processing Stage</div>
+          <div class="p-4 w-[10%] font-bold text-slate-500 uppercase tracking-wider text-[10px]">Source Mode</div>
+          <div class="p-4 w-[10%] font-bold text-slate-500 uppercase tracking-wider text-[10px]">Terminal Status</div>
+          <div class="p-4 w-[15%] font-bold text-slate-500 uppercase tracking-wider text-[10px]">Timestamp</div>
+          <div class="p-4 w-[25%] font-bold text-slate-500 uppercase tracking-wider text-[10px]">Diagnostic Details</div>
+        </div>
+
+        <!-- DYNAMIC LOOP -->
+        <oj-bind-for-each data="[[ $variables.logsList ]]">
+          <template>
+            <div class="flex items-stretch border-b border-slate-100 bg-white hover:bg-slate-50/50 transition-colors">
+              
+              <!-- Added min-w-0 and break-all to prevent long strings from breaking the grey background -->
+              <div class="p-4 w-[25%] min-w-0 font-mono text-[10px] text-slate-500 bg-slate-50 border-r border-slate-100 flex items-center break-all">
+                <oj-bind-text value="[[ $current.data.correlation_id ]]"></oj-bind-text>
+              </div>
+              
+              <div class="p-4 w-[15%] min-w-0 font-black text-slate-900 text-sm flex items-center break-words">
+                <oj-bind-text value="[[ $current.data.stage ]]"></oj-bind-text>
+              </div>
+              
+              <div class="p-4 w-[10%] min-w-0 font-bold text-slate-700 flex items-center">
+                <oj-bind-text value="[[ $current.data.source_mode ]]"></oj-bind-text>
+              </div>
+              
+              <div class="p-4 w-[10%] min-w-0 flex items-center">
+                <!-- Status Color Binding (Now includes RUNNING status) -->
+                <span :class="[[ 'inline-flex items-center rounded-full shadow-sm px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ' + ($current.data.status === 'COMPLETED' ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : ($current.data.status === 'FAILED' ? 'border-rose-200 bg-rose-100 text-rose-800' : ($current.data.status === 'RUNNING' ? 'border-blue-200 bg-blue-100 text-blue-800' : 'border-slate-200 bg-slate-100 text-slate-800'))) ]]">
+                  <oj-bind-text value="[[ $current.data.status ]]"></oj-bind-text>
+                </span>
+              </div>
+              
+              <div class="p-4 w-[15%] min-w-0 font-bold text-slate-700 text-xs flex items-center">
+                <oj-bind-text value="[[ $current.data.time ]]"></oj-bind-text>
+              </div>
+              
+              <div class="p-4 w-[25%] min-w-0 text-slate-700 text-xs font-medium flex items-center leading-relaxed break-words">
+                <oj-bind-text value="[[ $current.data.details ]]"></oj-bind-text>
+              </div>
+
+            </div>
+          </template>
+        </oj-bind-for-each>
+        
+      </div>
+    </div>
+  </div>
+</div>

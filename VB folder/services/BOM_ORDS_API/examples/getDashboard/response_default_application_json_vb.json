@@ -1,0 +1,7 @@
+{
+    "items": [
+        {
+            "dashboard_json": "{\"summary\":{\"totalBoms\":240,\"healthyBoms\":239,\"riskyBoms\":1,\"averageHealthScore\":99.81,\"openFindings\":3},\"severityCounts\":[{\"severity\":\"CRITICAL\",\"findingCount\":1},{\"severity\":\"HIGH\",\"findingCount\":2}],\"itemClassSummary\":[{\"itemClass\":\"ELECTRONICS\",\"bomCount\":80,\"averageHealthScore\":100},{\"itemClass\":\"HYDRAULIC\",\"bomCount\":80,\"averageHealthScore\":100},{\"itemClass\":\"MECHANICAL\",\"bomCount\":80,\"averageHealthScore\":99.44}]}"
+        }
+    ]
+}

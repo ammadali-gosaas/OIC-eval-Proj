@@ -1,0 +1,95 @@
+{
+    "items": [
+        {
+            "rule_id": 1,
+            "rule_code": "FR-008",
+            "rule_name": "Missing UOM",
+            "severity": "CRITICAL",
+            "description": "Create a finding when a component relationship required UOM is null, empty, or whitespace.",
+            "threshold_or_configuration": "UOM_CODE must be populated after trimming whitespace.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:05.617728Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 2,
+            "rule_code": "FR-009",
+            "rule_name": "Invalid Quantity",
+            "severity": "HIGH",
+            "description": "Create a finding when component quantity is null, zero, or negative.",
+            "threshold_or_configuration": "QUANTITY must be greater than zero.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:06.098476Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 3,
+            "rule_code": "FR-010",
+            "rule_name": "Exact Duplicate",
+            "severity": "WARNING",
+            "description": "Create a finding when duplicate parent/component/operation/effectivity relationship rows exist.",
+            "threshold_or_configuration": "Normalized parent, component, operation sequence including null, and effectivity dates including null must be unique.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:06.682406Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 4,
+            "rule_code": "FR-011",
+            "rule_name": "Obsolete Component",
+            "severity": "HIGH",
+            "description": "Create a finding when a component lifecycle status is obsolete while the parent BOM remains current.",
+            "threshold_or_configuration": "Configured obsolete statuses: OBSOLETE, INACTIVE, END_OF_LIFE.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:07.163393Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 5,
+            "rule_code": "FR-012",
+            "rule_name": "Invalid Effectivity",
+            "severity": "HIGH",
+            "description": "Create a finding when effectivity end is earlier than effectivity start.",
+            "threshold_or_configuration": "EFFECTIVITY_END must be greater than or equal to EFFECTIVITY_START when both are provided.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:07.652134Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 6,
+            "rule_code": "FR-013",
+            "rule_name": "Circular Reference",
+            "severity": "CRITICAL",
+            "description": "Create a finding when traversal of the staged BOM graph returns to an item already present in the path.",
+            "threshold_or_configuration": "Component graph must be acyclic within each latest BOM structure.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:08.130852Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 7,
+            "rule_code": "FR-014",
+            "rule_name": "Quantity Anomaly",
+            "severity": "WARNING",
+            "description": "Create a finding when a positive quantity violates the configured lower or upper threshold.",
+            "threshold_or_configuration": "ANOMALY_MIN_QUANTITY and ANOMALY_MAX_QUANTITY define prototype bounds.",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T08:45:08.608997Z",
+            "updated_at": "2026-07-30T08:50:03.983831Z"
+        },
+        {
+            "rule_id": 15,
+            "rule_code": "FR-999",
+            "rule_name": "Test Missing Material",
+            "severity": "HIGH",
+            "description": "Custom rule test.",
+            "threshold_or_configuration": "Material Cannot Be Null",
+            "enabled_flag": "Y",
+            "created_at": "2026-07-30T13:13:20.020937Z",
+            "updated_at": null
+        }
+    ],
+    "first": {
+        "$ref": "http://172.105.152.7:8181/ords/bom/rules"
+    }
+}
