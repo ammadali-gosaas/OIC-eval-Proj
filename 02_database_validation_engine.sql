@@ -6,38 +6,38 @@ PROMPT Seeding validation rules FR-008 through FR-014
 MERGE INTO validation_rules r
 USING (
     SELECT 'FR-008' rule_code, 'Missing UOM' rule_name, 'CRITICAL' severity,
-           'Create a finding when a component relationship required UOM is null, empty, or whitespace.' description,
-           'UOM_CODE must be populated after trimming whitespace.' threshold_or_configuration
+           'Component is missing a Unit of Measure' description,
+           '{"allow_whitespace": false, "default_uom_allowed": true}' rule_config
       FROM dual
     UNION ALL
     SELECT 'FR-009', 'Invalid Quantity', 'HIGH',
-           'Create a finding when component quantity is null, zero, or negative.',
-           'QUANTITY must be greater than zero.'
+           'Quantity is null, zero, or negative',
+           '{"operator": ">", "target_value": 0, "allow_null": false}'
       FROM dual
     UNION ALL
     SELECT 'FR-010', 'Exact Duplicate', 'WARNING',
-           'Create a finding when duplicate parent/component/operation/effectivity relationship rows exist.',
-           'Normalized parent, component, operation sequence including null, and effectivity dates including null must be unique.'
+           'Duplicate component in the same sequence',
+           '{"match_fields": ["parent_item_number", "component_item_number", "operation_sequence", "effectivity_start"]}'
       FROM dual
     UNION ALL
     SELECT 'FR-011', 'Obsolete Component', 'HIGH',
-           'Create a finding when a component lifecycle status is obsolete while the parent BOM remains current.',
-           'Configured obsolete statuses: OBSOLETE, INACTIVE, END_OF_LIFE.'
+           'Component status is obsolete',
+           '{"invalid_statuses": ["OBSOLETE", "INACTIVE", "END_OF_LIFE"]}'
       FROM dual
     UNION ALL
     SELECT 'FR-012', 'Invalid Effectivity', 'HIGH',
-           'Create a finding when effectivity end is earlier than effectivity start.',
-           'EFFECTIVITY_END must be greater than or equal to EFFECTIVITY_START when both are provided.'
+           'Effectivity dates are invalid',
+           '{"validate_end_after_start": true, "allow_open_ended": true}'
       FROM dual
     UNION ALL
     SELECT 'FR-013', 'Circular Reference', 'CRITICAL',
-           'Create a finding when traversal of the staged BOM graph returns to an item already present in the path.',
-           'Component graph must be acyclic within each latest BOM structure.'
+           'Component references its own parent',
+           '{"max_traversal_depth": 50}'
       FROM dual
     UNION ALL
     SELECT 'FR-014', 'Quantity Anomaly', 'WARNING',
-           'Create a finding when a positive quantity violates the configured lower or upper threshold.',
-           'ANOMALY_MIN_QUANTITY and ANOMALY_MAX_QUANTITY define prototype bounds.'
+           'Quantity is outside min/max thresholds',
+           '{"use_component_thresholds": true, "fallback_min": 0.1, "fallback_max": 1000}'
       FROM dual
 ) s
 ON (r.rule_code = s.rule_code)
@@ -45,7 +45,7 @@ WHEN MATCHED THEN UPDATE SET
     r.rule_name = s.rule_name,
     r.severity = s.severity,
     r.description = s.description,
-    r.threshold_or_configuration = s.threshold_or_configuration,
+    r.rule_config = s.rule_config,
     r.enabled_flag = 'Y',
     r.updated_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
 WHEN NOT MATCHED THEN INSERT (
@@ -53,7 +53,7 @@ WHEN NOT MATCHED THEN INSERT (
     rule_name,
     severity,
     description,
-    threshold_or_configuration,
+    rule_config,
     enabled_flag,
     created_at
 ) VALUES (
@@ -61,7 +61,7 @@ WHEN NOT MATCHED THEN INSERT (
     s.rule_name,
     s.severity,
     s.description,
-    s.threshold_or_configuration,
+    s.rule_config,
     'Y',
     SYSTIMESTAMP AT TIME ZONE 'UTC'
 );
@@ -371,22 +371,17 @@ END bom_validation_pkg;
 /
 
 CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
-    FUNCTION get_rule_id(p_rule_code IN validation_rules.rule_code%TYPE)
-        RETURN validation_rules.rule_id%TYPE
-    IS
-        v_rule_id validation_rules.rule_id%TYPE;
+    PROCEDURE get_rule_details(
+        p_rule_code IN validation_rules.rule_code%TYPE,
+        p_rule_id OUT validation_rules.rule_id%TYPE,
+        p_rule_config OUT VARCHAR2
+    ) IS
     BEGIN
-        SELECT rule_id
-          INTO v_rule_id
-          FROM validation_rules
-         WHERE rule_code = p_rule_code
-           AND enabled_flag = 'Y';
-
-        RETURN v_rule_id;
+        SELECT rule_id, rule_config INTO p_rule_id, p_rule_config
+          FROM validation_rules WHERE rule_code = p_rule_code AND enabled_flag = 'Y';
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            RAISE_APPLICATION_ERROR(-20001, 'Validation rule ' || p_rule_code || ' is not enabled or is missing.');
-    END get_rule_id;
+        WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20001, 'Rule ' || p_rule_code || ' missing.');
+    END get_rule_details;
 
     FUNCTION utc_now
         RETURN TIMESTAMP WITH TIME ZONE
@@ -476,6 +471,8 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
         v_rule_fr012      validation_rules.rule_id%TYPE;
         v_rule_fr013      validation_rules.rule_id%TYPE;
         v_rule_fr014      validation_rules.rule_id%TYPE;
+        v_config_fr008 VARCHAR2(4000); v_config_fr009 VARCHAR2(4000); v_config_fr010 VARCHAR2(4000); v_config_fr011 VARCHAR2(4000); v_config_fr012 VARCHAR2(4000); v_config_fr013 VARCHAR2(4000); v_config_fr014 VARCHAR2(4000);
+        v_fr008_allow_ws VARCHAR2(10); v_fr009_target NUMBER; v_fr010_match_op VARCHAR2(10); v_fr012_allow_open VARCHAR2(10); v_fr013_depth NUMBER; v_fr014_use_comp VARCHAR2(10); v_fr014_min NUMBER; v_fr014_max NUMBER;
         v_created_at      TIMESTAMP(6) WITH TIME ZONE;
         v_completed_at    TIMESTAMP(6) WITH TIME ZONE;
         v_err_msg         VARCHAR2(4000);
@@ -492,13 +489,22 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
           FROM bom_components
          WHERE bom_id = p_bom_id;
 
-        v_rule_fr008 := get_rule_id('FR-008');
-        v_rule_fr009 := get_rule_id('FR-009');
-        v_rule_fr010 := get_rule_id('FR-010');
-        v_rule_fr011 := get_rule_id('FR-011');
-        v_rule_fr012 := get_rule_id('FR-012');
-        v_rule_fr013 := get_rule_id('FR-013');
-        v_rule_fr014 := get_rule_id('FR-014');
+        get_rule_details('FR-008', v_rule_fr008, v_config_fr008);
+        get_rule_details('FR-009', v_rule_fr009, v_config_fr009);
+        get_rule_details('FR-010', v_rule_fr010, v_config_fr010);
+        get_rule_details('FR-011', v_rule_fr011, v_config_fr011);
+        get_rule_details('FR-012', v_rule_fr012, v_config_fr012);
+        get_rule_details('FR-013', v_rule_fr013, v_config_fr013);
+        get_rule_details('FR-014', v_rule_fr014, v_config_fr014);
+
+        v_fr008_allow_ws := NVL(JSON_VALUE(v_config_fr008, '$.allow_whitespace'), 'false');
+        v_fr009_target := NVL(TO_NUMBER(JSON_VALUE(v_config_fr009, '$.target_value')), 0);
+        v_fr010_match_op := CASE WHEN v_config_fr010 LIKE '%"operation_sequence"%' THEN 'true' ELSE 'false' END;
+        v_fr012_allow_open := NVL(JSON_VALUE(v_config_fr012, '$.allow_open_ended'), 'true');
+        v_fr013_depth := NVL(TO_NUMBER(JSON_VALUE(v_config_fr013, '$.max_traversal_depth')), 50);
+        v_fr014_use_comp := NVL(JSON_VALUE(v_config_fr014, '$.use_component_thresholds'), 'true');
+        v_fr014_min := TO_NUMBER(JSON_VALUE(v_config_fr014, '$.fallback_min'));
+        v_fr014_max := TO_NUMBER(JSON_VALUE(v_config_fr014, '$.fallback_max'));
 
         v_correlation_id := 'VAL-' || TO_CHAR(utc_now(), 'YYYYMMDDHH24MISSFF3') || '-' ||
                             RAWTOHEX(SYS_GUID());
@@ -543,7 +549,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
               FROM boms b
               JOIN bom_components c ON c.bom_id = b.bom_id
              WHERE b.bom_id = p_bom_id
-               AND TRIM(c.uom_code) IS NULL
+               AND ((v_fr008_allow_ws = 'false' AND TRIM(c.uom_code) IS NULL) OR (v_fr008_allow_ws = 'true' AND c.uom_code IS NULL))
         ) LOOP
             v_created_at := utc_now();
 
@@ -590,7 +596,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
               FROM boms b
               JOIN bom_components c ON c.bom_id = b.bom_id
              WHERE b.bom_id = p_bom_id
-               AND (c.quantity IS NULL OR c.quantity <= 0)
+               AND (c.quantity IS NULL OR c.quantity <= v_fr009_target)
         ) LOOP
             v_created_at := utc_now();
 
@@ -611,7 +617,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                 'FR-009|' || rec.bom_component_id,
                 'OPEN',
                 NVL(TO_CHAR(rec.quantity), 'NULL'),
-                'Quantity greater than 0',
+                'Quantity greater than ' || v_fr009_target,
                 JSON_OBJECT(
                     'ruleCode' VALUE 'FR-009',
                     'bomId' VALUE p_bom_id,
@@ -631,7 +637,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                 SELECT c.bom_id,
                        UPPER(TRIM(c.parent_item_number)) normalized_parent,
                        UPPER(TRIM(c.component_item_number)) normalized_component,
-                       NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') normalized_operation,
+                       CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END normalized_operation,
                        c.effectivity_start,
                        c.effectivity_end,
                        MIN(c.bom_component_id) anchor_component_id,
@@ -654,7 +660,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                  GROUP BY c.bom_id,
                           UPPER(TRIM(c.parent_item_number)),
                           UPPER(TRIM(c.component_item_number)),
-                          NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>'),
+                          CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END,
                           c.effectivity_start,
                           c.effectivity_end
                 HAVING COUNT(*) > 1
@@ -722,7 +728,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
               FROM boms b
               JOIN bom_components c ON c.bom_id = b.bom_id
              WHERE b.bom_id = p_bom_id
-               AND UPPER(TRIM(c.item_status)) IN ('OBSOLETE', 'INACTIVE', 'END_OF_LIFE')
+               AND UPPER(TRIM(c.item_status)) IN (SELECT UPPER(TRIM(status_val)) FROM JSON_TABLE(v_config_fr011, '$.invalid_statuses[*]' COLUMNS (status_val VARCHAR2(100) PATH '$')))
         ) LOOP
             v_created_at := utc_now();
 
@@ -771,9 +777,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
               FROM boms b
               JOIN bom_components c ON c.bom_id = b.bom_id
              WHERE b.bom_id = p_bom_id
-               AND c.effectivity_start IS NOT NULL
-               AND c.effectivity_end IS NOT NULL
-               AND c.effectivity_end < c.effectivity_start
+               AND c.effectivity_start IS NOT NULL AND ((c.effectivity_end IS NOT NULL AND c.effectivity_end < c.effectivity_start) OR (v_fr012_allow_open = 'false' AND c.effectivity_end IS NULL))
         ) LOOP
             v_created_at := utc_now();
 
@@ -828,8 +832,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                        AND CONNECT_BY_ISCYCLE = 1
                      START WITH c.bom_id = p_bom_id
                             AND c.parent_item_number = v_bom_item
-                   CONNECT BY NOCYCLE PRIOR c.component_item_number = c.parent_item_number
-                          AND PRIOR c.bom_id = c.bom_id
+                   CONNECT BY NOCYCLE PRIOR c.component_item_number = c.parent_item_number AND PRIOR c.bom_id = c.bom_id AND LEVEL <= v_fr013_depth
               )
              WHERE rn = 1
         ) LOOP
@@ -888,11 +891,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
               JOIN bom_components c ON c.bom_id = b.bom_id
              WHERE b.bom_id = p_bom_id
                AND c.quantity > 0
-               AND (
-                    (c.anomaly_min_quantity IS NOT NULL AND c.quantity < c.anomaly_min_quantity)
-                    OR
-                    (c.anomaly_max_quantity IS NOT NULL AND c.quantity > c.anomaly_max_quantity)
-               )
+               AND ((v_fr014_use_comp = 'true' AND c.anomaly_min_quantity IS NOT NULL AND c.quantity < c.anomaly_min_quantity) OR (v_fr014_use_comp = 'true' AND c.anomaly_max_quantity IS NOT NULL AND c.quantity > c.anomaly_max_quantity) OR ((v_fr014_use_comp = 'false' OR c.anomaly_min_quantity IS NULL) AND v_fr014_min IS NOT NULL AND c.quantity < v_fr014_min) OR ((v_fr014_use_comp = 'false' OR c.anomaly_max_quantity IS NULL) AND v_fr014_max IS NOT NULL AND c.quantity > v_fr014_max))
         ) LOOP
             v_created_at := utc_now();
 

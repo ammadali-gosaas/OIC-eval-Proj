@@ -91,7 +91,7 @@ CREATE TABLE VALIDATION_RULES (
     RULE_NAME VARCHAR2(200 CHAR) NOT NULL,
     SEVERITY VARCHAR2(20 CHAR) NOT NULL CHECK (SEVERITY IN ('CRITICAL', 'HIGH', 'WARNING', 'INFO')),
     DESCRIPTION VARCHAR2(1000 CHAR) NOT NULL,
-    THRESHOLD_OR_CONFIGURATION VARCHAR2(1000 CHAR),
+    RULE_CONFIG VARCHAR2(4000 CHAR) CHECK (RULE_CONFIG IS JSON),
     ENABLED_FLAG CHAR(1) NOT NULL CHECK (ENABLED_FLAG IN ('Y', 'N')),
     CREATED_AT TIMESTAMP(6) WITH TIME ZONE NOT NULL,
     UPDATED_AT TIMESTAMP(6) WITH TIME ZONE
@@ -168,27 +168,26 @@ CREATE TABLE DIAGNOSTIC_LOGS (
 -- 2. SEED DATA - VALIDATION RULES CATALOG (FR-008 to FR-014)
 -- --------------------------------------------------------------------
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-008', 'Missing UOM', 'CRITICAL', 'Component is missing a Unit of Measure', 'Y', SYSTIMESTAMP);
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-008', 'Missing UOM', 'CRITICAL', 'Component is missing a Unit of Measure', '{"allow_whitespace": false, "default_uom_allowed": true}', 'Y', SYSTIMESTAMP);
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-009', 'Invalid Quantity', 'HIGH', 'Quantity is null, zero, or negative', 'Y', SYSTIMESTAMP);
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-009', 'Invalid Quantity', 'HIGH', 'Quantity is null, zero, or negative', '{"operator": ">", "target_value": 0, "allow_null": false}', 'Y', SYSTIMESTAMP);
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-010', 'Exact Duplicate', 'WARNING', 'Duplicate component in the same sequence', 'Y', SYSTIMESTAMP);
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-010', 'Exact Duplicate', 'WARNING', 'Duplicate component in the same sequence', '{"match_fields": ["parent_item_number", "component_item_number", "operation_sequence", "effectivity_start"]}', 'Y', SYSTIMESTAMP);
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-011', 'Obsolete Component', 'HIGH', 'Component status is obsolete', 'Y', SYSTIMESTAMP);
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-011', 'Obsolete Component', 'HIGH', 'Component status is obsolete', '{"invalid_statuses": ["OBSOLETE", "INACTIVE", "END_OF_LIFE"]}', 'Y', SYSTIMESTAMP);
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-012', 'Invalid Effectivity', 'HIGH', 'Effectivity dates are invalid', 'Y', SYSTIMESTAMP);
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-012', 'Invalid Effectivity', 'HIGH', 'Effectivity dates are invalid', '{"validate_end_after_start": true, "allow_open_ended": true}', 'Y', SYSTIMESTAMP);
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-013', 'Circular Reference', 'CRITICAL', 'Component references its own parent', 'Y', SYSTIMESTAMP);
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-013', 'Circular Reference', 'CRITICAL', 'Component references its own parent', '{"max_traversal_depth": 50}', 'Y', SYSTIMESTAMP);
 
-INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, ENABLED_FLAG, CREATED_AT) 
-VALUES ('FR-014', 'Quantity Anomaly', 'WARNING', 'Quantity is outside min/max thresholds', 'Y', SYSTIMESTAMP);
-
+INSERT INTO VALIDATION_RULES (RULE_CODE, RULE_NAME, SEVERITY, DESCRIPTION, RULE_CONFIG, ENABLED_FLAG, CREATED_AT) 
+VALUES ('FR-014', 'Quantity Anomaly', 'WARNING', 'Quantity is outside min/max thresholds', '{"use_component_thresholds": true, "fallback_min": 0.1, "fallback_max": 1000}', 'Y', SYSTIMESTAMP);
 
 -- Save all changes permanently
 COMMIT;

@@ -231,6 +231,26 @@ SELECT br.run_id, br.bom_id, b.organization_code, b.item_number, br.run_kind, br
     --------------------------------------------------------------------
     -- 4. FINDING REVIEW & ADVISORY ENDPOINTS
     --------------------------------------------------------------------
+  
+  
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings/:finding_id');
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'findings/:finding_id',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 0,
+        p_source         => q'[
+SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, 
+       vr.rule_code, vr.rule_name, vr.severity, vf.issue_status, 
+       vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+  FROM validation_findings vf
+  JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+  JOIN bom_runs br ON br.run_id = vf.run_id
+  JOIN boms b ON b.bom_id = br.bom_id
+ WHERE vf.finding_id = TO_NUMBER(:finding_id DEFAULT NULL ON CONVERSION ERROR)
+        ]'
+    );
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings/:finding_id/status');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -276,30 +296,93 @@ END;
         p_mimes_allowed => 'application/json',
         p_source        => q'[
 DECLARE
-    v_bom_id NUMBER := TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR);
-    v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
-    v_run_id NUMBER; v_advisory_id NUMBER; v_finding_cnt NUMBER; v_score NUMBER; v_corr_id VARCHAR2(100); v_now TIMESTAMP(6) WITH TIME ZONE;
+    v_bom_id          NUMBER := TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR);
+    v_requested_by    VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
+    
+    v_raw_payload     CLOB := :ai_summary;
+    v_ai_summary      CLOB;
+    v_ai_suggested    CLOB;
+    v_ai_provider     VARCHAR2(100) := NVL(:ai_provider, 'GEMINI-FLASH-LATEST');
+    
+    v_run_id          NUMBER;
+    v_advisory_id     NUMBER;
+    v_finding_cnt     NUMBER;
+    v_score           NUMBER;
+    v_corr_id         VARCHAR2(100);
+    v_now             TIMESTAMP(6) WITH TIME ZONE;
 BEGIN
-    IF v_bom_id IS NULL THEN RAISE_APPLICATION_ERROR(-20021, 'Path parameter bom_id must be numeric.'); END IF;
+    IF v_bom_id IS NULL THEN 
+        RAISE_APPLICATION_ERROR(-20021, 'Path parameter bom_id must be numeric.'); 
+    END IF;
+
+    -- Automatically extract JSON keys into separate variables
+    BEGIN
+        v_ai_summary   := JSON_VALUE(v_raw_payload, '$.ai_summary');
+        v_ai_suggested := JSON_VALUE(v_raw_payload, '$.ai_suggested_action');
+    EXCEPTION
+        WHEN OTHERS THEN
+            v_ai_summary   := v_raw_payload;
+            v_ai_suggested := NULL;
+    END;
+
+    -- Fallback if payload isn't JSON
+    IF v_ai_summary IS NULL THEN
+        v_ai_summary := v_raw_payload;
+    END IF;
+
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' INTO v_now FROM dual;
     SELECT health_score INTO v_score FROM boms WHERE bom_id = v_bom_id;
-    SELECT COUNT(*) INTO v_finding_cnt FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id WHERE br.bom_id = v_bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED');
+    
+    SELECT COUNT(*) INTO v_finding_cnt 
+      FROM bom_runs br 
+      JOIN validation_findings vf ON vf.run_id = br.run_id 
+     WHERE br.bom_id = v_bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED');
+
     v_corr_id := 'AI-BOM-' || TO_CHAR(v_now, 'YYYYMMDDHH24MISSFF3') || '-' || RAWTOHEX(SYS_GUID());
 
     INSERT INTO bom_runs (bom_id, run_kind, trigger_type, status, source_mode, correlation_id, requested_by, started_at, completed_at, input_count, finding_count, health_score)
     VALUES (v_bom_id, 'ADVISORY_AI', 'USER_AI', 'COMPLETED', 'N/A', v_corr_id, v_requested_by, v_now, v_now, v_finding_cnt, v_finding_cnt, v_score)
     RETURNING run_id INTO v_run_id;
 
+    -- Save to separate, clean database columns
     INSERT INTO ai_advisories (run_id, finding_id, advisory_scope, ai_status, ai_summary, ai_suggested_action, ai_provider, requested_by, generated_at)
-    VALUES (v_run_id, NULL, 'BOM', 'COMPLETED', 'Mock Advisory AI summary for BOM ' || v_bom_id || '. Health score: ' || v_score, 'Review critical and high severity findings.', 'LOCAL_MOCK', v_requested_by, v_now)
+    VALUES (v_run_id, NULL, 'BOM', 'COMPLETED', v_ai_summary, v_ai_suggested, v_ai_provider, v_requested_by, v_now)
     RETURNING advisory_id INTO v_advisory_id;
 
     COMMIT;
     :status_code := 201;
-EXCEPTION WHEN NO_DATA_FOUND THEN :status_code := 404; WHEN OTHERS THEN ROLLBACK; :status_code := 400;
+EXCEPTION 
+    WHEN NO_DATA_FOUND THEN :status_code := 404; 
+    WHEN OTHERS THEN ROLLBACK; :status_code := 400;
 END;
         ]'
     );
+
+-- NEW: GET Handler for BOM Advisories
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'boms/:bom_id/advisories',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 0,
+        p_source         => q'[
+SELECT a.advisory_id,
+       r.bom_id,
+       r.run_id,
+       a.advisory_scope,
+       a.ai_status,
+       a.ai_summary,
+       a.ai_suggested_action,
+       a.ai_provider,
+       a.requested_by,
+       a.generated_at
+  FROM ai_advisories a
+  JOIN bom_runs r ON r.run_id = a.run_id
+ WHERE r.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+ ORDER BY a.generated_at DESC
+        ]'
+    );
+
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings/:finding_id/advisories');
     ORDS.DEFINE_HANDLER(
@@ -311,26 +394,80 @@ END;
         p_source        => q'[
 DECLARE
     v_finding_id NUMBER := TO_NUMBER(:finding_id DEFAULT NULL ON CONVERSION ERROR);
-    v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
-    v_bom_id NUMBER; v_run_id NUMBER; v_advisory_id NUMBER; v_corr_id VARCHAR2(100); v_rule_code VARCHAR2(50); v_actual VARCHAR2(1000); v_expected VARCHAR2(1000); v_now TIMESTAMP(6) WITH TIME ZONE;
+    v_requested_by VARCHAR2(200) := NVL(:requested_by, 'OIC-Integration');
+    
+    v_raw_payload     CLOB := :ai_summary;
+    v_ai_summary      CLOB;
+    v_ai_suggested    CLOB;
+    v_ai_provider     VARCHAR2(100) := NVL(:ai_provider, 'GEMINI');
+    
+    v_bom_id NUMBER; v_run_id NUMBER; v_advisory_id NUMBER; v_corr_id VARCHAR2(100); v_now TIMESTAMP(6) WITH TIME ZONE;
 BEGIN
     IF v_finding_id IS NULL THEN RAISE_APPLICATION_ERROR(-20022, 'Path parameter finding_id must be numeric.'); END IF;
+    
+    -- Extract the JSON keys generated by Gemini
+    BEGIN
+        v_ai_summary   := JSON_VALUE(v_raw_payload, '$.ai_summary');
+        v_ai_suggested := JSON_VALUE(v_raw_payload, '$.ai_suggested_action');
+    EXCEPTION
+        WHEN OTHERS THEN
+            v_ai_summary   := v_raw_payload;
+            v_ai_suggested := NULL;
+    END;
+
+    IF v_ai_summary IS NULL THEN
+        v_ai_summary := v_raw_payload;
+    END IF;
+
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' INTO v_now FROM dual;
-    SELECT br.bom_id, vr.rule_code, vf.actual_value, vf.expected_value INTO v_bom_id, v_rule_code, v_actual, v_expected FROM validation_findings vf JOIN validation_rules vr ON vr.rule_id = vf.rule_id JOIN bom_runs br ON br.run_id = vf.run_id WHERE vf.finding_id = v_finding_id;
+    
+    -- Find the parent BOM ID
+    SELECT br.bom_id INTO v_bom_id 
+      FROM validation_findings vf 
+      JOIN bom_runs br ON br.run_id = vf.run_id 
+     WHERE vf.finding_id = v_finding_id;
+     
     v_corr_id := 'AI-FINDING-' || TO_CHAR(v_now, 'YYYYMMDDHH24MISSFF3') || '-' || RAWTOHEX(SYS_GUID());
 
     INSERT INTO bom_runs (bom_id, run_kind, trigger_type, status, source_mode, correlation_id, requested_by, started_at, completed_at, input_count, finding_count)
     VALUES (v_bom_id, 'ADVISORY_AI', 'USER_AI', 'COMPLETED', 'N/A', v_corr_id, v_requested_by, v_now, v_now, 1, 1) RETURNING run_id INTO v_run_id;
 
+    -- Save the REAL AI data instead of the mock data
     INSERT INTO ai_advisories (run_id, finding_id, advisory_scope, ai_status, ai_summary, ai_suggested_action, ai_provider, requested_by, generated_at)
-    VALUES (v_run_id, v_finding_id, 'FINDING', 'COMPLETED', 'Mock Advisory AI explanation for finding ' || v_finding_id || ' (' || v_rule_code || ').', 'Inspect component evidence before release.', 'LOCAL_MOCK', v_requested_by, v_now) RETURNING advisory_id INTO v_advisory_id;
+    VALUES (v_run_id, v_finding_id, 'FINDING', 'COMPLETED', v_ai_summary, v_ai_suggested, v_ai_provider, v_requested_by, v_now) RETURNING advisory_id INTO v_advisory_id;
 
     COMMIT;
     :status_code := 201;
-EXCEPTION WHEN NO_DATA_FOUND THEN :status_code := 404; WHEN OTHERS THEN ROLLBACK; :status_code := 400;
+EXCEPTION 
+    WHEN NO_DATA_FOUND THEN :status_code := 404; 
+    WHEN OTHERS THEN ROLLBACK; :status_code := 400;
 END;
         ]'
     );
+
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'findings/:finding_id/advisories',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 0,
+        p_source         => q'[
+SELECT a.advisory_id,
+       a.run_id,
+       a.finding_id,
+       a.advisory_scope,
+       a.ai_status,
+       a.ai_summary,
+       a.ai_suggested_action,
+       a.ai_provider,
+       a.requested_by,
+       a.generated_at
+  FROM ai_advisories a
+ WHERE a.finding_id = TO_NUMBER(:finding_id DEFAULT NULL ON CONVERSION ERROR)
+ ORDER BY a.generated_at DESC
+        ]'
+    );
+ 
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'advisories/:requestId');
     ORDS.DEFINE_HANDLER(
@@ -356,7 +493,7 @@ SELECT advisory_id, run_id, finding_id, advisory_scope, ai_status, ai_summary, a
         p_source_type    => ORDS.source_type_query,
         p_items_per_page => 100,
         p_source         => q'[
-SELECT rule_id, rule_code, rule_name, severity, description, threshold_or_configuration, enabled_flag, created_at, updated_at FROM validation_rules ORDER BY rule_code
+SELECT rule_id, rule_code, rule_name, severity, description, rule_config, enabled_flag, created_at, updated_at FROM validation_rules ORDER BY rule_code
         ]'
     );
 
@@ -368,10 +505,15 @@ SELECT rule_id, rule_code, rule_name, severity, description, threshold_or_config
         p_mimes_allowed => 'application/json',
         p_source        => q'[
 DECLARE
-    v_code VARCHAR2(50) := :rule_code; v_name VARCHAR2(200) := :rule_name; v_severity VARCHAR2(20) := UPPER(TRIM(:severity)); v_desc VARCHAR2(1000) := :description; v_thresh VARCHAR2(1000) := :threshold_or_configuration; v_rule_id NUMBER;
+    v_code VARCHAR2(50) := :rule_code; 
+    v_name VARCHAR2(200) := :rule_name; 
+    v_severity VARCHAR2(20) := UPPER(TRIM(:severity)); 
+    v_desc VARCHAR2(1000) := :description; 
+    v_config VARCHAR2(4000) := :rule_config; 
+    v_rule_id NUMBER;
 BEGIN
-    INSERT INTO validation_rules (rule_code, rule_name, severity, description, threshold_or_configuration, enabled_flag, created_at)
-    VALUES (v_code, v_name, v_severity, NVL(v_desc, 'Custom Prototype Rule'), v_thresh, 'Y', SYSTIMESTAMP AT TIME ZONE 'UTC') RETURNING rule_id INTO v_rule_id;
+    INSERT INTO validation_rules (rule_code, rule_name, severity, description, rule_config, enabled_flag, created_at)
+    VALUES (v_code, v_name, v_severity, NVL(v_desc, 'Custom Prototype Rule'), v_config, 'Y', SYSTIMESTAMP AT TIME ZONE 'UTC') RETURNING rule_id INTO v_rule_id;
     COMMIT;
     :status_code := 201;
 EXCEPTION WHEN OTHERS THEN ROLLBACK; :status_code := 400;
@@ -392,6 +534,7 @@ SELECT log_id, correlation_id, related_run_id, related_finding_id, component_cod
         ]'
     );
 
+-- Query String Endpoint (Optional general search)
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -405,13 +548,36 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
   JOIN validation_rules vr ON vr.rule_id = vf.rule_id
   JOIN bom_runs br ON br.run_id = vf.run_id
   JOIN boms b ON b.bom_id = br.bom_id
- WHERE (:issue_status IS NULL OR vf.issue_status = :issue_status)
-   AND (:severity IS NULL OR vr.severity = :severity)
-   AND (:rule_code IS NULL OR vr.rule_code = :rule_code)
+ WHERE (:bom_id IS NULL OR b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR))
+     AND (:issue_status IS NULL OR vf.issue_status = :issue_status)
+     AND (:severity IS NULL OR vr.severity = :severity)
+     AND (:rule_code IS NULL OR vr.rule_code = :rule_code)
  ORDER BY vf.created_at DESC
         ]'
     );
 
+    -- NEW: Path Parameter Endpoint (Use this one for OIC)
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings');
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'boms/:bom_id/findings',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 100,
+        p_source         => q'[
+SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, 
+       vr.rule_code, vr.rule_name, vr.severity, vf.issue_status, 
+       vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+  FROM validation_findings vf
+  JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+  JOIN bom_runs br ON br.run_id = vf.run_id
+  JOIN boms b ON b.bom_id = br.bom_id
+ WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+ ORDER BY vf.created_at DESC
+        ]'
+    );
+
+    
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'schedules');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -468,23 +634,23 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
         p_mimes_allowed => 'application/json',
         p_source        => q'[
 DECLARE
-    v_rule_id NUMBER := TO_NUMBER(:rule_id DEFAULT NULL ON CONVERSION ERROR);
+    v_rule_code VARCHAR2(50) := UPPER(TRIM(:rule_id));
     v_name VARCHAR2(200) := :rule_name;
     v_severity VARCHAR2(20) := UPPER(TRIM(:severity));
     v_desc VARCHAR2(1000) := :description;
-    v_thresh VARCHAR2(1000) := :threshold_or_configuration;
+    v_config VARCHAR2(4000) := :rule_config;
     v_enabled CHAR(1) := NVL(UPPER(TRIM(:enabled_flag)), 'Y');
 BEGIN
-    IF v_rule_id IS NULL THEN RAISE_APPLICATION_ERROR(-20023, 'Path parameter rule_id must be numeric.'); END IF;
+    IF v_rule_code IS NULL THEN RAISE_APPLICATION_ERROR(-20023, 'Path parameter rule_code must be provided.'); END IF;
     
     UPDATE validation_rules 
        SET rule_name = NVL(v_name, rule_name),
            severity = NVL(v_severity, severity),
            description = NVL(v_desc, description),
-           threshold_or_configuration = NVL(v_thresh, threshold_or_configuration),
+           rule_config = NVL(v_config, rule_config),
            enabled_flag = v_enabled,
            updated_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
-     WHERE rule_id = v_rule_id;
+     WHERE UPPER(rule_code) = v_rule_code;
      
     IF SQL%ROWCOUNT = 0 THEN
         :status_code := 404;
@@ -498,6 +664,37 @@ END;
         ]'
     );
 
+ORDS.DEFINE_HANDLER(
+        p_module_name   => 'bom_api',
+        p_pattern       => 'rules/:rule_id',
+        p_method        => 'DELETE',
+        p_source_type   => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source        => q'[
+DECLARE
+    v_rule_code VARCHAR2(50) := UPPER(TRIM(:rule_id));
+BEGIN
+    IF v_rule_code IS NULL THEN 
+        RAISE_APPLICATION_ERROR(-20025, 'Rule code parameter is required.'); 
+    END IF;
+
+    -- Only match against rule_code
+    DELETE FROM validation_rules 
+    WHERE UPPER(rule_code) = v_rule_code;
+
+    IF SQL%ROWCOUNT = 0 THEN
+        :status_code := 404;
+    ELSE
+        COMMIT;
+        :status_code := 200;
+    END IF;
+EXCEPTION 
+    WHEN OTHERS THEN 
+        ROLLBACK; 
+        :status_code := 400;
+END;
+        ]'
+    );
 
     COMMIT;
 END;
