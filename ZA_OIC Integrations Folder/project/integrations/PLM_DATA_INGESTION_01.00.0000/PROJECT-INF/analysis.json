@@ -1,0 +1,1 @@
+{"id":"PLM_DATA_INGESTION_01.00.0000","icsProject":{"version":"01.00.0000","percentageComplete":100,"modelType":"FREEFORM","projectCode":"PLM_DATA_INGESTION","processorCount":{"INTEGRATION_METADATA":1,"MESSAGE_TRACKER":1,"TRANSFORMER":3,"STAGE_FILE":1,"SOURCE":1,"TARGET":2,"STAGE_READ":1},"smartTags":"app:REST, app:soap,style:App Driven Orchestration"}}

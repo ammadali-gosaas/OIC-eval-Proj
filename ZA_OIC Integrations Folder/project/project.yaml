@@ -1,0 +1,76 @@
+---
+id: ZA_PLM
+code: ZA_PLM
+name: ZA PLM
+type: DEVELOPED
+smartTags:
+- "app:rest,style:app driven orchestration"
+- "app:rest, app:soap,style:app driven orchestration"
+revision: 0
+projectRevision: 316
+status: ACTIVE
+createdBy: zahra.kazmi@gosaas.ai
+createdDate: 2026-08-04T12:24:09.879+0000
+updatedBy: zahra.kazmi@gosaas.ai
+updatedDate: 2026-08-04T12:24:09.879+0000
+latestBy: ammad.ali@gosaas.ai
+latestDate: 2026-08-06T07:55:21.072+0000
+CAV: 1
+simplifiedMode: false
+assets:
+  integrations:
+  - id: BOM_AI_ADVISORY_SERVICE|01.00.0000
+    name: BOM AI Advisory Service
+    revision: 25
+    updatedBy: zahra.kazmi@gosaas.ai
+    updatedDate: 2026-08-06T06:59:31.122+0000
+  - id: FINDING_AI_ADVISORY_SERVICE|01.00.0000
+    name: Finding AI Advisory Service
+    revision: 8
+    updatedBy: zahra.kazmi@gosaas.ai
+    updatedDate: 2026-08-06T06:54:27.883+0000
+  - id: PLM_DATA_INGESTION|01.00.0000
+    name: PLM Data Ingestion
+    revision: 29
+    updatedBy: ammad.ali@gosaas.ai
+    updatedDate: 2026-08-06T07:45:21.968+0000
+  connections:
+  - id: FUSION_BIP_SOAP_CONN
+    name: Fusion_BIP_SOAP_Conn
+    revision: 1
+    updatedBy: ammad.ali@gosaas.ai
+    updatedDate: 2026-08-06T06:58:29.437+0000
+  - id: GEMINI_AI_REST_CONN
+    name: Gemini_AI_REST_Conn
+    revision: 1
+    updatedBy: zahra.kazmi@gosaas.ai
+    updatedDate: 2026-08-04T12:29:08.334+0000
+  - id: GENERIC_INBOUND_TRIGGER
+    name: Generic_Inbound_Trigger
+    revision: 1
+    updatedBy: zahra.kazmi@gosaas.ai
+    updatedDate: 2026-08-05T12:48:54.510+0000
+  - id: ORDS_ATP_REST_CONN
+    name: ORDS_ATP_REST_Conn
+    revision: 3
+    updatedBy: zahra.kazmi@gosaas.ai
+    updatedDate: 2026-08-05T07:21:18.200+0000
+  - id: ORDS_PRIVATE_DATABASE
+    name: ORDS_Private_Database
+    revision: 1
+    updatedBy: zahra.kazmi@gosaas.ai
+    updatedDate: 2026-08-05T14:03:12.967+0000
+  - id: VB_PLM_TRIGGER_CONN
+    name: VB_PLM_Trigger_Conn
+    revision: 1
+    updatedBy: ammad.ali@gosaas.ai
+    updatedDate: 2026-08-05T12:59:16.774+0000
+  labels:
+  - id: FOREXPORTING
+    name: ForExporting
+    revision: 2
+    updatedBy: ammad.ali@gosaas.ai
+    updatedDate: 2026-08-06T07:55:21.030+0000
+origin:
+  tenantOCID: ocid1.tenancy.oc1..aaaaaaaalsofu7fjn2chwljrx6oquhzhhhcn5u4q2md3j3xcootnvsbccgaa
+  serviceInstanceOCID: ocid1.integrationinstance.oc1.iad.amaaaaaa2bcws5yalgfre4bd5hcpuxuv6kfasankwys3ppa4xt4af4pz5q2a

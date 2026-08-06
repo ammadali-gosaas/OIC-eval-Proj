@@ -1,0 +1,19 @@
+<adapter-config xsdTargetNamespace="http://xmlns.oracle.com/cloud/adapter/stagefile/DecodeReportPayload_REQUEST/types" name="DecodeReportPayload_REQUESTPortType" adapter="stagefile" wsdlLocation="DecodeReportPayload_REQUEST.wsdl" xmlns="http://platform.integration.oracle/blocks/adapter/fw/metadata">
+  <connection-factory location="ics/FileAdapter">
+    <non-managed-connection managedConnectionFactoryClassName="oracle.tip.adapter.file.FileManagedConnectionFactory"/>
+  </connection-factory>
+  <endpoint-activation portType="DecodeReportPayload_REQUESTPortType" operation="Read">
+    <activation-spec className="oracle.tip.adapter.file.inbound.FileActivationSpec">
+      <property name="FileRefProcessingEnabled" value="true"/>
+      <property name="HeterogeneousSchema" value="true"/>
+      <property name="ICSUploadSchemaElement" value="DATA_DS"/>
+      <property name="ICSUploadSchemaElementNameSpace" value="http://xmlns.oracle.com/cloud/adapter/nxsd/surrogate/DecodeReportPayload"/>
+      <property name="OpaqueSchema" value="false"/>
+      <property name="Operation" value="ReadWithOutChunk"/>
+      <property name="RemoveLastRows" value="0"/>
+      <property name="decryptContent" value="false"/>
+      <property name="publishExtendedDataTypes" value="true"/>
+      <property name="verifyContent" value="false"/>
+    </activation-spec>
+  </endpoint-activation>
+</adapter-config>

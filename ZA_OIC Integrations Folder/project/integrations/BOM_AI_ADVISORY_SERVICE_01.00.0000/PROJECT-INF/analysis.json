@@ -1,0 +1,1 @@
+{"id":"BOM_AI_ADVISORY_SERVICE_01.00.0000","icsProject":{"version":"01.00.0000","percentageComplete":100,"modelType":"FREEFORM","projectCode":"BOM_AI_ADVISORY_SERVICE","processorCount":{"INTEGRATION_METADATA":1,"MESSAGE_TRACKER":1,"TRANSFORMER":4,"SOURCE":1,"TARGET":3},"smartTags":"app:REST,style:App Driven Orchestration"}}

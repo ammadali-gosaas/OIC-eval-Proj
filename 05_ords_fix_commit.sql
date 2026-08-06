@@ -83,6 +83,17 @@ END;
         ]'
     );
 
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'dashboard/refresh',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
     --------------------------------------------------------------------
     -- 2. BOM SUMMARY & DETAIL ENDPOINTS
     --------------------------------------------------------------------
@@ -111,6 +122,184 @@ SELECT b.bom_id, b.organization_code, b.item_number, b.structure_name, b.descrip
  GROUP BY b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at
  ORDER BY b.health_score ASC, b.item_number
         ]'
+    );
+
+    ORDS.DEFINE_HANDLER(
+        p_module_name   => 'bom_api',
+        p_pattern       => 'boms',
+        p_method        => 'POST',
+        p_source_type   => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source        => q'[
+DECLARE
+    v_clob          CLOB := :body_text;
+    v_element       JSON_ELEMENT_T;
+    v_root          JSON_OBJECT_T;
+    v_items         JSON_ARRAY_T;
+    v_item          JSON_OBJECT_T;
+    v_bom_id        NUMBER;
+
+    v_org_code      VARCHAR2(10);
+    v_assembly_item VARCHAR2(100);
+    v_bill_seq_id   VARCHAR2(100);
+    v_struct_name   VARCHAR2(100);
+    v_bom_desc      VARCHAR2(500);
+    v_comp_item     VARCHAR2(100);
+    v_qty           NUMBER;
+    v_uom           VARCHAR2(10);
+    v_op_seq        NUMBER;
+    v_item_class    VARCHAR2(100);
+    v_bom_level     NUMBER;
+    v_effectivity   VARCHAR2(100);
+    v_import_batch  VARCHAR2(100);
+    v_count         NUMBER := 0;
+
+    FUNCTION get_str(p_obj JSON_OBJECT_T, p_key VARCHAR2) RETURN VARCHAR2 IS
+        v_elem JSON_ELEMENT_T;
+    BEGIN
+        IF p_obj IS NOT NULL AND p_obj.has(p_key) THEN
+            v_elem := p_obj.get(p_key);
+            IF v_elem IS NOT NULL AND NOT v_elem.is_null THEN
+                IF v_elem.is_string THEN
+                    RETURN p_obj.get_string(p_key);
+                ELSIF v_elem.is_number THEN
+                    RETURN TO_CHAR(p_obj.get_number(p_key));
+                ELSIF v_elem.is_boolean THEN
+                    RETURN CASE WHEN p_obj.get_boolean(p_key) THEN 'TRUE' ELSE 'FALSE' END;
+                END IF;
+            END IF;
+        END IF;
+        RETURN NULL;
+    EXCEPTION
+        WHEN OTHERS THEN
+            RETURN NULL;
+    END get_str;
+
+    FUNCTION get_num(p_obj JSON_OBJECT_T, p_key VARCHAR2) RETURN NUMBER IS
+        v_elem JSON_ELEMENT_T;
+    BEGIN
+        IF p_obj IS NOT NULL AND p_obj.has(p_key) THEN
+            v_elem := p_obj.get(p_key);
+            IF v_elem IS NOT NULL AND NOT v_elem.is_null THEN
+                IF v_elem.is_number THEN
+                    RETURN p_obj.get_number(p_key);
+                ELSIF v_elem.is_string THEN
+                    RETURN TO_NUMBER(p_obj.get_string(p_key));
+                END IF;
+            END IF;
+        END IF;
+        RETURN NULL;
+    EXCEPTION
+        WHEN OTHERS THEN
+            RETURN NULL;
+    END get_num;
+BEGIN
+    IF v_clob IS NULL OR dbms_lob.getlength(v_clob) = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Request payload body is empty.');
+    END IF;
+
+    v_element := JSON_ELEMENT_T.parse(v_clob);
+
+    IF v_element.is_array THEN
+        v_items := TREAT(v_element AS JSON_ARRAY_T);
+    ELSIF v_element.is_object THEN
+        v_root := TREAT(v_element AS JSON_OBJECT_T);
+        IF v_root.has('items') AND v_root.get('items').is_array THEN
+            v_items := v_root.get_array('items');
+        ELSE
+            v_items := NEW JSON_ARRAY_T();
+            v_items.append(v_root);
+        END IF;
+    END IF;
+
+    IF v_items IS NULL OR v_items.get_size = 0 THEN
+        RAISE_APPLICATION_ERROR(-20002, 'No items array found in JSON payload.');
+    END IF;
+
+    FOR i IN 0 .. v_items.get_size - 1 LOOP
+        v_item := TREAT(v_items.get(i) AS JSON_OBJECT_T);
+
+        v_org_code      := UPPER(TRIM(get_str(v_item, 'organization_code')));
+        v_assembly_item := TRIM(NVL(get_str(v_item, 'assembly_item_number'), get_str(v_item, 'item_number')));
+        v_bill_seq_id   := TRIM(get_str(v_item, 'bill_sequence_id'));
+        v_struct_name   := NVL(TRIM(get_str(v_item, 'structure_name')), 'PRIMARY');
+        v_bom_desc      := NVL(get_str(v_item, 'bom_description'), get_str(v_item, 'description'));
+        v_comp_item     := TRIM(get_str(v_item, 'component_item_number'));
+        v_qty           := get_num(v_item, 'quantity');
+        v_uom           := get_str(v_item, 'uom_code');
+        v_op_seq        := NVL(get_num(v_item, 'operation_seq_num'), get_num(v_item, 'operation_sequence'));
+        v_item_class    := get_str(v_item, 'item_class');
+        v_bom_level     := NVL(get_num(v_item, 'bom_level'), 1);
+        v_effectivity   := NVL(get_str(v_item, 'effectivity_control'), 'DATE_EFFECTIVE');
+        v_import_batch  := NVL(get_str(v_item, 'import_batch_id'), 'REST_IMPORT_BATCH');
+
+        IF v_org_code IS NULL OR v_assembly_item IS NULL THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Missing organization_code or assembly_item_number in JSON item.');
+        END IF;
+
+        -- 1. Insert or fetch parent BOM
+        BEGIN
+            SELECT bom_id INTO v_bom_id
+              FROM boms
+             WHERE organization_code = v_org_code
+               AND item_number = v_assembly_item
+               AND structure_name = v_struct_name;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                INSERT INTO boms (
+                    organization_code, item_number, structure_name,
+                    description, item_class, health_score, status_label, 
+                    imported_at, bill_sequence_id, effectivity_control,
+                    import_batch_id, source_updated_at
+                ) VALUES (
+                    v_org_code, v_assembly_item, v_struct_name,
+                    v_bom_desc, v_item_class, 100, 'HEALTHY', 
+                    SYSTIMESTAMP AT TIME ZONE 'UTC', v_bill_seq_id, v_effectivity,
+                    v_import_batch, SYSTIMESTAMP AT TIME ZONE 'UTC'
+                ) RETURNING bom_id INTO v_bom_id;
+        END;
+
+        -- 2. Insert component details if component item exists
+        IF v_comp_item IS NOT NULL THEN
+            INSERT INTO bom_components (
+                bom_id, parent_item_number, component_item_number,
+                quantity, uom_code, operation_sequence, bom_level, 
+                component_item_class, imported_at
+            ) VALUES (
+                v_bom_id, v_assembly_item, v_comp_item,
+                v_qty, v_uom, v_op_seq, v_bom_level, 
+                v_item_class, SYSTIMESTAMP AT TIME ZONE 'UTC'
+            );
+        END IF;
+
+        v_count := v_count + 1;
+    END LOOP;
+
+    COMMIT;
+    :status_code := 201;
+    
+    -- Explicitly output application/json HTTP header
+    owa_util.mime_header('application/json', TRUE);
+    htp.p('{"status":"success","inserted_count":' || v_count || '}');
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        :status_code := 400;
+        owa_util.mime_header('application/json', TRUE);
+        htp.p('{"error":"' || REPLACE(SQLERRM, '"', '\"') || '"}');
+END;
+        ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
     );
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id');
@@ -155,6 +344,17 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN ROLLBACK; :status_code := 400;
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms/:bom_id/refresh',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
     );
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/runs');
@@ -215,6 +415,17 @@ END;
         ]'
     );
 
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'validation-runs',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'validation-runs/:run_id');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -231,8 +442,6 @@ SELECT br.run_id, br.bom_id, b.organization_code, b.item_number, br.run_kind, br
     --------------------------------------------------------------------
     -- 4. FINDING REVIEW & ADVISORY ENDPOINTS
     --------------------------------------------------------------------
-  
-  
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings/:finding_id');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -251,6 +460,7 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number,
  WHERE vf.finding_id = TO_NUMBER(:finding_id DEFAULT NULL ON CONVERSION ERROR)
         ]'
     );
+
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings/:finding_id/status');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -287,6 +497,17 @@ END;
         ]'
     );
 
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'findings/:finding_id/status',
+        p_method             => 'PATCH',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/advisories');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -315,7 +536,6 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20021, 'Path parameter bom_id must be numeric.'); 
     END IF;
 
-    -- Automatically extract JSON keys into separate variables
     BEGIN
         v_ai_summary   := JSON_VALUE(v_raw_payload, '$.ai_summary');
         v_ai_suggested := JSON_VALUE(v_raw_payload, '$.ai_suggested_action');
@@ -325,7 +545,6 @@ BEGIN
             v_ai_suggested := NULL;
     END;
 
-    -- Fallback if payload isn't JSON
     IF v_ai_summary IS NULL THEN
         v_ai_summary := v_raw_payload;
     END IF;
@@ -344,7 +563,6 @@ BEGIN
     VALUES (v_bom_id, 'ADVISORY_AI', 'USER_AI', 'COMPLETED', 'N/A', v_corr_id, v_requested_by, v_now, v_now, v_finding_cnt, v_finding_cnt, v_score)
     RETURNING run_id INTO v_run_id;
 
-    -- Save to separate, clean database columns
     INSERT INTO ai_advisories (run_id, finding_id, advisory_scope, ai_status, ai_summary, ai_suggested_action, ai_provider, requested_by, generated_at)
     VALUES (v_run_id, NULL, 'BOM', 'COMPLETED', v_ai_summary, v_ai_suggested, v_ai_provider, v_requested_by, v_now)
     RETURNING advisory_id INTO v_advisory_id;
@@ -358,7 +576,17 @@ END;
         ]'
     );
 
--- NEW: GET Handler for BOM Advisories
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'boms/:bom_id/advisories',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
         p_pattern        => 'boms/:bom_id/advisories',
@@ -383,7 +611,6 @@ SELECT a.advisory_id,
         ]'
     );
 
-
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings/:finding_id/advisories');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -405,7 +632,6 @@ DECLARE
 BEGIN
     IF v_finding_id IS NULL THEN RAISE_APPLICATION_ERROR(-20022, 'Path parameter finding_id must be numeric.'); END IF;
     
-    -- Extract the JSON keys generated by Gemini
     BEGIN
         v_ai_summary   := JSON_VALUE(v_raw_payload, '$.ai_summary');
         v_ai_suggested := JSON_VALUE(v_raw_payload, '$.ai_suggested_action');
@@ -421,7 +647,6 @@ BEGIN
 
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' INTO v_now FROM dual;
     
-    -- Find the parent BOM ID
     SELECT br.bom_id INTO v_bom_id 
       FROM validation_findings vf 
       JOIN bom_runs br ON br.run_id = vf.run_id 
@@ -432,7 +657,6 @@ BEGIN
     INSERT INTO bom_runs (bom_id, run_kind, trigger_type, status, source_mode, correlation_id, requested_by, started_at, completed_at, input_count, finding_count)
     VALUES (v_bom_id, 'ADVISORY_AI', 'USER_AI', 'COMPLETED', 'N/A', v_corr_id, v_requested_by, v_now, v_now, 1, 1) RETURNING run_id INTO v_run_id;
 
-    -- Save the REAL AI data instead of the mock data
     INSERT INTO ai_advisories (run_id, finding_id, advisory_scope, ai_status, ai_summary, ai_suggested_action, ai_provider, requested_by, generated_at)
     VALUES (v_run_id, v_finding_id, 'FINDING', 'COMPLETED', v_ai_summary, v_ai_suggested, v_ai_provider, v_requested_by, v_now) RETURNING advisory_id INTO v_advisory_id;
 
@@ -443,6 +667,17 @@ EXCEPTION
     WHEN OTHERS THEN ROLLBACK; :status_code := 400;
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'findings/:finding_id/advisories',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
     );
 
     ORDS.DEFINE_HANDLER(
@@ -467,7 +702,6 @@ SELECT a.advisory_id,
  ORDER BY a.generated_at DESC
         ]'
     );
- 
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'advisories/:requestId');
     ORDS.DEFINE_HANDLER(
@@ -521,6 +755,17 @@ END;
         ]'
     );
 
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'rules',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'diagnostics/runs');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -534,7 +779,6 @@ SELECT log_id, correlation_id, related_run_id, related_finding_id, component_cod
         ]'
     );
 
--- Query String Endpoint (Optional general search)
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -556,7 +800,6 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
         ]'
     );
 
-    -- NEW: Path Parameter Endpoint (Use this one for OIC)
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -577,7 +820,6 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number,
         ]'
     );
 
-    
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'schedules');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -625,6 +867,17 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number,
         ]'
     );
 
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'schedules',
+        p_method             => 'POST',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'rules/:rule_id');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -647,6 +900,7 @@ BEGIN
        SET rule_name = NVL(v_name, rule_name),
            severity = NVL(v_severity, severity),
            description = NVL(v_desc, description),
+           rule_config = NVL(v_desc, description),
            rule_config = NVL(v_config, rule_config),
            enabled_flag = v_enabled,
            updated_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
@@ -664,7 +918,18 @@ END;
         ]'
     );
 
-ORDS.DEFINE_HANDLER(
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'rules/:rule_id',
+        p_method             => 'PUT',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
+    );
+
+    ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
         p_pattern       => 'rules/:rule_id',
         p_method        => 'DELETE',
@@ -678,7 +943,6 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20025, 'Rule code parameter is required.'); 
     END IF;
 
-    -- Only match against rule_code
     DELETE FROM validation_rules 
     WHERE UPPER(rule_code) = v_rule_code;
 
@@ -694,6 +958,17 @@ EXCEPTION
         :status_code := 400;
 END;
         ]'
+    );
+
+    ORDS.DEFINE_PARAMETER(
+        p_module_name        => 'bom_api',
+        p_pattern            => 'rules/:rule_id',
+        p_method             => 'DELETE',
+        p_name               => 'X-ORDS-STATUS-CODE',
+        p_bind_variable_name => 'status_code',
+        p_source_type        => 'HEADER',
+        p_param_type         => 'INT',
+        p_access_method      => 'OUT'
     );
 
     COMMIT;

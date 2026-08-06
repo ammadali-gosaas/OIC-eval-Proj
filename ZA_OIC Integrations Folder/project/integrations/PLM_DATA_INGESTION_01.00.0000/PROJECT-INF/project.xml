@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns3:icsproject name="project_1" version="10.1" cversion="5" modelType="freeform" xmlns="http://www.oracle.com/2014/03/ics/project/definition" xmlns:ns2="http://www.oracle.com/2014/03/ics/flow/definition" xmlns:ns3="http://www.oracle.com/2014/03/ics/project">
+    <projectCode>PLM_DATA_INGESTION</projectCode>
+    <projectVersion>01.00.0000</projectVersion>
+    <projectName>PLM Data Ingestion</projectName>
+    <percentComplete>100</percentComplete>
+    <projectHasErrors>false</projectHasErrors>
+    <projectHasWarnings>false</projectHasWarnings>
+    <ns3:icsflow name="flow_1">
+        <ns2:application name="application_13">
+            <ns2:role>source</ns2:role>
+            <ns2:adapter>
+                <ns2:type>app-adapter</ns2:type>
+                <ns2:code>VB_PLM_TRIGGER_CONN</ns2:code>
+                <ns2:name>RefreshPLMTrigger</ns2:name>
+                <ns2:property name="hasAttachment" value="false"/>
+            </ns2:adapter>
+            <ns2:mep>push-sync</ns2:mep>
+            <ns2:outbound name="outbound_14">
+                <ns2:binding>rest</ns2:binding>
+                <ns2:operation>execute</ns2:operation>
+                <ns2:resourceGroup name="resourcegroup_15">
+                    <ns2:resource name="resource_16" location="../resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.jca" type="jca"/>
+                    <ns2:resource name="resource_17" location="../resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl" type="wsdl"/>
+                </ns2:resourceGroup>
+                <ns2:input name="input_19">
+                    <ns2:role>response</ns2:role>
+                    <ns2:messageContextRef refUri="messagecontext_18"/>
+                </ns2:input>
+                <ns2:input name="input_23">
+                    <ns2:role>fault</ns2:role>
+                    <ns2:subRole>APIInvocationError</ns2:subRole>
+                    <ns2:messageContextRef refUri="messagecontext_22"/>
+                </ns2:input>
+                <ns2:output name="output_21">
+                    <ns2:role>request</ns2:role>
+                    <ns2:messageContextRef refUri="messagecontext_20"/>
+                </ns2:output>
+            </ns2:outbound>
+            <ns2:property name="staticNamespace" value="false"/>
+        </ns2:application>
+        <ns2:application name="application_60">
+            <ns2:role>target</ns2:role>
+            <ns2:adapter>
+                <ns2:type>app-adapter</ns2:type>
+                <ns2:code>ORDS_ATP_REST_CONN</ns2:code>
+                <ns2:name>PostStagedBOMs</ns2:name>
+                <ns2:property name="hasAttachment" value="false"/>
+            </ns2:adapter>
+            <ns2:mep>push-sync</ns2:mep>
+            <ns2:inbound name="inbound_61">
+                <ns2:operation>execute</ns2:operation>
+                <ns2:resourceGroup name="resourcegroup_62">
+                    <ns2:resource name="resource_63" location="../resources/application_60/inbound_61/resourcegroup_62/PostStagedBOMs_REQUEST.jca" type="jca"/>
+                    <ns2:resource name="resource_64" location="../resources/application_60/inbound_61/resourcegroup_62/ICSFault.xsd" type="xsd"/>
+                    <ns2:resource name="resource_65" location="../resources/application_60/inbound_61/resourcegroup_62/PostStagedBOMs_REQUEST.wsdl" type="wsdl"/>
+                </ns2:resourceGroup>
+                <ns2:input name="input_67">
+                    <ns2:role>request</ns2:role>
+                    <ns2:messageContextRef refUri="messagecontext_66"/>
+                </ns2:input>
+                <ns2:output name="output_69">
+                    <ns2:role>response</ns2:role>
+                    <ns2:messageContextRef refUri="messagecontext_68"/>
+                </ns2:output>
+                <ns2:output name="output_71">
+                    <ns2:role>fault</ns2:role>
+                    <ns2:subRole>APIInvocationError</ns2:subRole>
+                    <ns2:messageContextRef refUri="messagecontext_70"/>
+                </ns2:output>
+            </ns2:inbound>
+            <ns2:property name="staticNamespace" value="false"/>
+        </ns2:application>
+        <ns2:application name="application_80">
+            <ns2:role>target</ns2:role>
+            <ns2:adapter>
+                <ns2:type>app-adapter</ns2:type>
+                <ns2:code>FUSION_BIP_SOAP_CONN</ns2:code>
+                <ns2:name>RunBIPReport</ns2:name>
+                <ns2:property name="hasAttachment" value="false"/>
+            </ns2:adapter>
+            <ns2:mep>push-sync</ns2:mep>
+            <ns2:inbound name="inbound_81">
+                <ns2:operation>runReport</ns2:operation>
+                <ns2:resourceGroup name="resourcegroup_82">
+                    <ns2:resource name="resource_83" location="../resources/application_80/inbound_81/resourcegroup_82/RunBIPReport_REQUEST.jca" type="jca"/>
+                    <ns2:resource name="resource_84" location="../resources/application_80/inbound_81/resourcegroup_82/ICSFault.xsd" type="xsd"/>
+                    <ns2:resource name="resource_85" location="../resources/application_80/inbound_81/resourcegroup_82/RunBIPReport_REQUEST.wsdl" type="wsdl"/>
+                </ns2:resourceGroup>
+                <ns2:input name="input_87">
+                    <ns2:role>request</ns2:role>
+                    <ns2:messageContextRef refUri="messagecontext_86"/>
+                </ns2:input>
+                <ns2:output name="output_89">
+                    <ns2:role>response</ns2:role>
+                    <ns2:messageContextRef refUri="messagecontext_88"/>
+                </ns2:output>
+                <ns2:output name="output_91">
+                    <ns2:role>fault</ns2:role>
+                    <ns2:subRole>AccessDeniedException</ns2:subRole>
+                    <ns2:messageContextRef refUri="messagecontext_90"/>
+                </ns2:output>
+                <ns2:output name="output_93">
+                    <ns2:role>fault</ns2:role>
+                    <ns2:subRole>OperationFailedException</ns2:subRole>
+                    <ns2:messageContextRef refUri="messagecontext_92"/>
+                </ns2:output>
+                <ns2:output name="output_95">
+                    <ns2:role>fault</ns2:role>
+                    <ns2:subRole>InvalidParametersException</ns2:subRole>
+                    <ns2:messageContextRef refUri="messagecontext_94"/>
+                </ns2:output>
+            </ns2:inbound>
+            <ns2:property name="staticNamespace" value="false"/>
+        </ns2:application>
+        <ns2:processor name="processor_1">
+            <ns2:type>integrationMetadata</ns2:type>
+            <ns2:role>undefined</ns2:role>
+            <ns2:resourceGroup name="resourcegroup_2">
+                <ns2:resource name="resource_3" location="../resources/processor_1/resourcegroup_2/ICSIntegrationMetadata.xsd" type="xsd"/>
+            </ns2:resourceGroup>
+            <ns2:output name="output_5">
+                <ns2:messageContextRef refUri="messagecontext_4"/>
+            </ns2:output>
+        </ns2:processor>
+        <ns2:processor name="processor_6">
+            <ns2:type>messageTracker</ns2:type>
+            <ns2:role>messageTracker:global</ns2:role>
+            <ns2:trackingVariableGroup>
+                <ns2:trackingVariable>
+                    <ns2:role>tracking_var_1</ns2:role>
+                    <ns2:primary>true</ns2:primary>
+                    <ns2:name>organizationCode</ns2:name>
+                    <ns2:xpath>/execute/request-wrapper/organizationCode</ns2:xpath>
+                    <ns2:messageContextRef refUri="messagecontext_20"/>
+                    <ns2:output name="output_8">
+                        <ns2:messageContextRef refUri="messagecontext_7"/>
+                    </ns2:output>
+                </ns2:trackingVariable>
+                <ns2:trackingVariable>
+                    <ns2:role>tracking_var_2</ns2:role>
+                    <ns2:primary>false</ns2:primary>
+                    <ns2:name>tracking_var_2</ns2:name>
+                    <ns2:messageContextRef refUri="messagecontext_20"/>
+                    <ns2:output name="output_10">
+                        <ns2:messageContextRef refUri="messagecontext_9"/>
+                    </ns2:output>
+                </ns2:trackingVariable>
+                <ns2:trackingVariable>
+                    <ns2:role>tracking_var_3</ns2:role>
+                    <ns2:primary>false</ns2:primary>
+                    <ns2:name>tracking_var_3</ns2:name>
+                    <ns2:messageContextRef refUri="messagecontext_20"/>
+                    <ns2:output name="output_12">
+                        <ns2:messageContextRef refUri="messagecontext_11"/>
+                    </ns2:output>
+                </ns2:trackingVariable>
+            </ns2:trackingVariableGroup>
+        </ns2:processor>
+        <ns2:processor name="processor_24">
+            <ns2:type>transformer</ns2:type>
+            <ns2:role>transformer:response-map</ns2:role>
+            <ns2:resourceGroup name="resourcegroup_27">
+                <ns2:resource name="resource_28" location="../resources/processor_24/resourcegroup_27/req_1f31f916b27b4f7380eea615aa6a7d23.xsl" type="xslt"/>
+            </ns2:resourceGroup>
+            <ns2:input name="input_25">
+                <ns2:messageContextRef refUri="messagecontext_20"/>
+            </ns2:input>
+            <ns2:output name="output_26">
+                <ns2:messageContextRef refUri="messagecontext_18"/>
+            </ns2:output>
+            <ns2:property name="has-mappings" value="true"/>
+        </ns2:processor>
+        <ns2:processor name="processor_72">
+            <ns2:type>transformer</ns2:type>
+            <ns2:role>transformer:response-map</ns2:role>
+            <ns2:resourceGroup name="resourcegroup_75">
+                <ns2:resource name="resource_76" location="../resources/processor_72/resourcegroup_75/req_76a0406fdcce4f78b41a4e3e4501f1af.xsl" type="xslt"/>
+            </ns2:resourceGroup>
+            <ns2:resourceRef refUri="messagecontext_153">
+                <ns2:role>secondary-source</ns2:role>
+                <ns2:subRole>DecodeReportPayload</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:input name="input_73">
+                <ns2:messageContextRef refUri="messagecontext_20"/>
+            </ns2:input>
+            <ns2:output name="output_74">
+                <ns2:messageContextRef refUri="messagecontext_66"/>
+            </ns2:output>
+            <ns2:property name="has-mappings" value="true"/>
+        </ns2:processor>
+        <ns2:processor name="processor_96">
+            <ns2:type>transformer</ns2:type>
+            <ns2:role>transformer:response-map</ns2:role>
+            <ns2:resourceGroup name="resourcegroup_99">
+                <ns2:resource name="resource_100" location="../resources/processor_96/resourcegroup_99/req_cbe33fd4517f4b81b7f9e3ba5dceae18.xsl" type="xslt"/>
+            </ns2:resourceGroup>
+            <ns2:input name="input_97">
+                <ns2:messageContextRef refUri="messagecontext_20"/>
+            </ns2:input>
+            <ns2:output name="output_98">
+                <ns2:messageContextRef refUri="messagecontext_86"/>
+            </ns2:output>
+            <ns2:property name="has-mappings" value="true"/>
+        </ns2:processor>
+        <ns2:processor name="processor_149">
+            <ns2:type>stageFile</ns2:type>
+            <ns2:role>undefined</ns2:role>
+            <ns2:resourceGroup name="resourcegroup_150">
+                <ns2:resource name="resource_151" location="../resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.wsdl" type="wsdl"/>
+                <ns2:resource name="resource_160" location="../resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.jca" type="jca"/>
+            </ns2:resourceGroup>
+            <ns2:resourceGroup name="resourcegroup_163">
+                <ns2:role>exprBuilderProperties</ns2:role>
+                <ns2:resource name="resource_164" location="../resources/processor_149/resourcegroup_163/READ_FILE_REFERENCEexpr.properties" type="properties">
+                    <ns2:role>READ_FILE_REFERENCE</ns2:role>
+                </ns2:resource>
+            </ns2:resourceGroup>
+            <ns2:resourceRef refUri="messagecontext_20">
+                <ns2:role>primary-source</ns2:role>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_88">
+                <ns2:role>secondary-source</ns2:role>
+                <ns2:subRole>RunBIPReport</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_88">
+                <ns2:role>secondary-source</ns2:role>
+                <ns2:subRole>RunBIPReport</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_20">
+                <ns2:role>primary-source</ns2:role>
+            </ns2:resourceRef>
+            <ns2:output name="output_154">
+                <ns2:messageContextRef refUri="messagecontext_153"/>
+            </ns2:output>
+            <ns2:property name="operation" value="Read"/>
+            <ns2:property name="chunk" value="false"/>
+            <ns2:processorName>DecodeReportPayload</ns2:processorName>
+            <ns2:processorDescription></ns2:processorDescription>
+        </ns2:processor>
+        <ns2:messageContext name="messagecontext_4">
+            <ns2:resourceRef refUri="processor_1/resourcegroup_2/resource_3"/>
+            <ns2:rootElement elementName="metadata" namespace="http://www.oracle.com/2014/03/ic/integration/metadata"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_7">
+            <ns2:rootElement elementName="string" namespace="http://www.w3.org/2001/XMLSchema"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_9">
+            <ns2:rootElement elementName="string" namespace="http://www.w3.org/2001/XMLSchema"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_11">
+            <ns2:rootElement elementName="string" namespace="http://www.w3.org/2001/XMLSchema"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_18">
+            <ns2:resourceRef refUri="application_13/outbound_14/resourcegroup_15/resource_17"/>
+            <ns2:rootElement elementName="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types"/>
+            <ns2:wsdlMessage messageName="executeResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_20">
+            <ns2:resourceRef refUri="application_13/outbound_14/resourcegroup_15/resource_17"/>
+            <ns2:rootElement elementName="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types"/>
+            <ns2:wsdlMessage messageName="executeRequestMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_22">
+            <ns2:resourceRef refUri="application_13/outbound_14/resourcegroup_15/resource_17"/>
+            <ns2:rootElement elementName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/generic/rest/fault/REST/RefreshPLMTrigger"/>
+            <ns2:wsdlMessage messageName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST" partName="parameters"/>
+            <ns2:wsdlFault faultName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_66">
+            <ns2:resourceRef refUri="application_60/inbound_61/resourcegroup_62/resource_65"/>
+            <ns2:rootElement elementName="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/PostStagedBOMs_REQUEST/types"/>
+            <ns2:wsdlMessage messageName="executeRequestMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/PostStagedBOMs_REQUEST" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_68">
+            <ns2:resourceRef refUri="application_60/inbound_61/resourcegroup_62/resource_65"/>
+            <ns2:rootElement elementName="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/PostStagedBOMs_REQUEST/types"/>
+            <ns2:wsdlMessage messageName="executeResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/PostStagedBOMs_REQUEST" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_70">
+            <ns2:resourceRef refUri="application_60/inbound_61/resourcegroup_62/resource_65"/>
+            <ns2:rootElement elementName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/generic/rest/fault/REST/PostStagedBOMs"/>
+            <ns2:wsdlMessage messageName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/PostStagedBOMs_REQUEST" partName="parameters"/>
+            <ns2:wsdlFault faultName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/PostStagedBOMs_REQUEST"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_86">
+            <ns2:resourceRef refUri="application_80/inbound_81/resourcegroup_82/resource_85"/>
+            <ns2:rootElement elementName="OutboundSOAPRequestDocument" namespace="http://xmlns.oracle.com/types/RunBIPReport/1786000021107/OutboundSOAPRequestDocument"/>
+            <ns2:wsdlMessage messageName="runReportInput" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_88">
+            <ns2:resourceRef refUri="application_80/inbound_81/resourcegroup_82/resource_85"/>
+            <ns2:rootElement elementName="runReportResponse" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+            <ns2:wsdlMessage messageName="runReportOutput" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_90">
+            <ns2:resourceRef refUri="application_80/inbound_81/resourcegroup_82/resource_85"/>
+            <ns2:rootElement elementName="AccessDeniedException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+            <ns2:wsdlMessage messageName="AccessDeniedException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService" partName="AccessDeniedException"/>
+            <ns2:wsdlFault faultName="AccessDeniedException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_92">
+            <ns2:resourceRef refUri="application_80/inbound_81/resourcegroup_82/resource_85"/>
+            <ns2:rootElement elementName="OperationFailedException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+            <ns2:wsdlMessage messageName="OperationFailedException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService" partName="OperationFailedException"/>
+            <ns2:wsdlFault faultName="OperationFailedException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_94">
+            <ns2:resourceRef refUri="application_80/inbound_81/resourcegroup_82/resource_85"/>
+            <ns2:rootElement elementName="InvalidParametersException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+            <ns2:wsdlMessage messageName="InvalidParametersException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService" partName="InvalidParametersException"/>
+            <ns2:wsdlFault faultName="InvalidParametersException" namespace="http://xmlns.oracle.com/oxp/service/PublicReportService"/>
+        </ns2:messageContext>
+        <ns2:messageContext name="messagecontext_153">
+            <ns2:resourceRef refUri="processor_149/resourcegroup_150/resource_151"/>
+            <ns2:rootElement elementName="ReadResponse" namespace="http://xmlns.oracle.com/cloud/adapter/stagefile/DecodeReportPayload_REQUEST/types"/>
+            <ns2:wsdlMessage messageName="ReadResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/stagefile/DecodeReportPayload_REQUEST" partName="parameters"/>
+        </ns2:messageContext>
+        <ns2:commonNamespaceMaps/>
+        <ns2:orchestration>
+            <ns2:integrationMetadata id="im0" refUri="processor_1"/>
+            <ns2:receive trackingRefUri="processor_6" id="r0" refUri="application_13/outbound_14/output_21"/>
+            <ns2:transformer id="m1" refUri="processor_96"/>
+            <ns2:invoke id="i0" refUri="application_80" name="SOAP1" end2EndJsonEnabled="false"/>
+            <ns2:stageFile id="sf0" refUri="processor_149"/>
+            <ns2:transformer id="m2" refUri="processor_72"/>
+            <ns2:invoke id="i1" refUri="application_60" name="REST3" end2EndJsonEnabled="false"/>
+            <ns2:transformer id="m0" refUri="processor_24"/>
+            <ns2:reply id="y0" refUri="application_13/outbound_14/input_19"/>
+        </ns2:orchestration>
+    </ns3:icsflow>
+</ns3:icsproject>

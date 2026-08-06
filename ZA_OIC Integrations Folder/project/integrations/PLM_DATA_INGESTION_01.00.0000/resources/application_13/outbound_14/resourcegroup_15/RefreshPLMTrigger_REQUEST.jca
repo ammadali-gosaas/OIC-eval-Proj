@@ -1,0 +1,47 @@
+<adapter-config xsdTargetNamespace="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types" name="RefreshPLMTrigger_REQUESTPortType" adapter="REST" wsdlLocation="RefreshPLMTrigger_REQUEST.wsdl" xmlns="http://platform.integration.oracle/blocks/adapter/fw/metadata">
+  <connection-factory location="cloud/CloudAdapter">
+    <non-managed-connection managedConnectionFactoryClassName="oracle.cloud.connector.rest.RestAdapterConnectionFactory">
+      <property name="cloud.adapter.plugin.init.version" value="25.06.0"/>
+      <property name="cloud.adapter.plugin.version" value="25.06.0"/>
+      <property name="cloud.adapter.sdk.init.version" value="25.06.0"/>
+      <property name="cloud.adapter.sdk.version" value="25.06.0"/>
+      <property name="privateEndpoint" value="false"/>
+      <property name="rest.inbound.security.configurable" value="true"/>
+      <property name="security" value="oracle/wss_http_token_service_policy"/>
+      <property name="securityPolicy" value="BASIC_AUTH"/>
+    </non-managed-connection>
+  </connection-factory>
+  <endpoint-activation portType="RefreshPLMTrigger_REQUESTPortType" operation="execute">
+    <activation-spec className="oracle.tip.adapter.cloud.CloudActivationSpec">
+      <property name="targetOperation" value="execute"/>
+      <property name="HTTPHeadersAdded" value="true"/>
+      <property name="HttpVerb" value="POST"/>
+      <property name="RequestElementNS" value="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger/types"/>
+      <property name="RequestElementName" value="request-wrapper"/>
+      <property name="RequestMediaType" value="application/json"/>
+      <property name="RequestSample" value="{   &quot;organizationCode&quot;: &quot;GOSAAS&quot; }"/>
+      <property name="ResourceURI" value="/refresh-plm"/>
+      <property name="ResponseElementNS" value="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger/types"/>
+      <property name="ResponseElementName" value="response-wrapper"/>
+      <property name="ResponseMediaType" value="application/json"/>
+      <property name="ResponseSample" value="{   &quot;status&quot;: &quot;SUCCESS&quot;,   &quot;message&quot;: &quot;PLM Ingestion completed successfully&quot; }"/>
+      <property name="allowChangeDefaultNamespace" value="false"/>
+      <property name="copyFaultFromModel" value="true"/>
+      <property name="generateConnectivityPropertiesInboundRequest" value="RESTINREQ"/>
+      <property name="generateConnectivityPropertiesInboundResponse" value="RESTINRES"/>
+      <property name="generatePartnerLink" value="false"/>
+      <property name="generateSecurityPropertiesInboundRequest" value="SECURITYPROPSRESTINREQ"/>
+      <property name="integrationSchemaNamespace" value="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types"/>
+      <property name="integrationWSDLNamespace" value="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST"/>
+      <property name="invocationStyle" value="REQUEST_RESPONSE"/>
+      <property name="isRequestJsonSchema" value="false"/>
+      <property name="isRequestRawBytes" value="false"/>
+      <property name="isResponseJsonSchema" value="false"/>
+      <property name="isResponseRawBytes" value="false"/>
+      <property name="operations" value="default"/>
+      <property name="postQueryParamsAsContent" value="false"/>
+      <property name="requestJsonTopLevelArray" value="false"/>
+      <property name="responseJsonTopLevelArray" value="false"/>
+    </activation-spec>
+  </endpoint-activation>
+</adapter-config>

@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns3:icsproject name="project_1" version="10.1" cversion="5" modelType="freeform" xmlns="http://www.oracle.com/2014/03/ics/flow/definition" xmlns:ns2="http://www.oracle.com/2014/03/ics/project/definition" xmlns:ns3="http://www.oracle.com/2014/03/ics/project">
+    <ns2:projectCode>BOM_AI_ADVISORY_SERVICE</ns2:projectCode>
+    <ns2:projectVersion>01.00.0000</ns2:projectVersion>
+    <ns2:projectName>BOM AI Advisory Service</ns2:projectName>
+    <ns2:percentComplete>100</ns2:percentComplete>
+    <ns2:projectHasErrors>false</ns2:projectHasErrors>
+    <ns2:projectHasWarnings>false</ns2:projectHasWarnings>
+    <ns3:icsflow name="flow_1">
+        <application name="application_13">
+            <role>source</role>
+            <adapter>
+                <type>app-adapter</type>
+                <code>ORDS_ATP_REST_CONN</code>
+                <name>VisualBuilder_Trigger</name>
+                <property name="hasAttachment" value="false"/>
+            </adapter>
+            <mep>push-sync</mep>
+            <outbound name="outbound_14">
+                <binding>rest</binding>
+                <operation>execute</operation>
+                <resourceGroup name="resourcegroup_15">
+                    <resource name="resource_16" location="../resources/application_13/outbound_14/resourcegroup_15/VisualBuilder_Trigger_REQUEST.jca" type="jca"/>
+                    <resource name="resource_17" location="../resources/application_13/outbound_14/resourcegroup_15/VisualBuilder_Trigger_REQUEST.wsdl" type="wsdl"/>
+                </resourceGroup>
+                <input name="input_19">
+                    <role>response</role>
+                    <messageContextRef refUri="messagecontext_18"/>
+                </input>
+                <input name="input_23">
+                    <role>fault</role>
+                    <subRole>APIInvocationError</subRole>
+                    <messageContextRef refUri="messagecontext_22"/>
+                </input>
+                <output name="output_21">
+                    <role>request</role>
+                    <messageContextRef refUri="messagecontext_20"/>
+                </output>
+            </outbound>
+            <property name="staticNamespace" value="false"/>
+        </application>
+        <application name="application_31">
+            <role>target</role>
+            <adapter>
+                <type>app-adapter</type>
+                <code>ORDS_ATP_REST_CONN</code>
+                <name>Get_BOM_Findings</name>
+                <property name="hasAttachment" value="false"/>
+            </adapter>
+            <mep>push-sync</mep>
+            <inbound name="inbound_32">
+                <operation>execute</operation>
+                <resourceGroup name="resourcegroup_33">
+                    <resource name="resource_36" location="../resources/application_31/inbound_32/resourcegroup_33/Get_BOM_Findings_REQUEST.wsdl" type="wsdl"/>
+                    <resource name="resource_82" location="../resources/application_31/inbound_32/resourcegroup_33/Get_BOM_Findings_REQUEST.jca" type="jca"/>
+                    <resource name="resource_83" location="../resources/application_31/inbound_32/resourcegroup_33/ICSFault.xsd" type="xsd"/>
+                </resourceGroup>
+                <input name="input_38">
+                    <role>request</role>
+                    <messageContextRef refUri="messagecontext_37"/>
+                </input>
+                <output name="output_40">
+                    <role>response</role>
+                    <messageContextRef refUri="messagecontext_39"/>
+                </output>
+                <output name="output_42">
+                    <role>fault</role>
+                    <subRole>APIInvocationError</subRole>
+                    <messageContextRef refUri="messagecontext_41"/>
+                </output>
+            </inbound>
+            <property name="staticNamespace" value="false"/>
+        </application>
+        <application name="application_48">
+            <role>target</role>
+            <adapter>
+                <type>app-adapter</type>
+                <code>GEMINI_AI_REST_CONN</code>
+                <name>Invoke_Gemini_API</name>
+                <property name="hasAttachment" value="false"/>
+            </adapter>
+            <mep>push-sync</mep>
+            <inbound name="inbound_49">
+                <operation>execute</operation>
+                <resourceGroup name="resourcegroup_50">
+                    <resource name="resource_51" location="../resources/application_48/inbound_49/resourcegroup_50/Invoke_Gemini_API_REQUEST.jca" type="jca"/>
+                    <resource name="resource_52" location="../resources/application_48/inbound_49/resourcegroup_50/ICSFault.xsd" type="xsd"/>
+                    <resource name="resource_53" location="../resources/application_48/inbound_49/resourcegroup_50/Invoke_Gemini_API_REQUEST.wsdl" type="wsdl"/>
+                </resourceGroup>
+                <input name="input_55">
+                    <role>request</role>
+                    <messageContextRef refUri="messagecontext_54"/>
+                </input>
+                <output name="output_57">
+                    <role>response</role>
+                    <messageContextRef refUri="messagecontext_56"/>
+                </output>
+                <output name="output_59">
+                    <role>fault</role>
+                    <subRole>APIInvocationError</subRole>
+                    <messageContextRef refUri="messagecontext_58"/>
+                </output>
+            </inbound>
+            <property name="staticNamespace" value="false"/>
+        </application>
+        <application name="application_65">
+            <role>target</role>
+            <adapter>
+                <type>app-adapter</type>
+                <code>ORDS_ATP_REST_CONN</code>
+                <name>Save_AI_Advisory</name>
+                <property name="hasAttachment" value="false"/>
+            </adapter>
+            <mep>push-sync</mep>
+            <inbound name="inbound_66">
+                <operation>execute</operation>
+                <resourceGroup name="resourcegroup_67">
+                    <resource name="resource_68" location="../resources/application_65/inbound_66/resourcegroup_67/Save_AI_Advisory_REQUEST.jca" type="jca"/>
+                    <resource name="resource_69" location="../resources/application_65/inbound_66/resourcegroup_67/ICSFault.xsd" type="xsd"/>
+                    <resource name="resource_70" location="../resources/application_65/inbound_66/resourcegroup_67/Save_AI_Advisory_REQUEST.wsdl" type="wsdl"/>
+                </resourceGroup>
+                <input name="input_72">
+                    <role>request</role>
+                    <messageContextRef refUri="messagecontext_71"/>
+                </input>
+                <output name="output_74">
+                    <role>response</role>
+                    <messageContextRef refUri="messagecontext_73"/>
+                </output>
+                <output name="output_76">
+                    <role>fault</role>
+                    <subRole>APIInvocationError</subRole>
+                    <messageContextRef refUri="messagecontext_75"/>
+                </output>
+            </inbound>
+            <property name="staticNamespace" value="false"/>
+        </application>
+        <processor name="processor_1">
+            <type>integrationMetadata</type>
+            <role>undefined</role>
+            <resourceGroup name="resourcegroup_2">
+                <resource name="resource_3" location="../resources/processor_1/resourcegroup_2/ICSIntegrationMetadata.xsd" type="xsd"/>
+            </resourceGroup>
+            <output name="output_5">
+                <messageContextRef refUri="messagecontext_4"/>
+            </output>
+        </processor>
+        <processor name="processor_6">
+            <type>messageTracker</type>
+            <role>messageTracker:global</role>
+            <trackingVariableGroup>
+                <trackingVariable>
+                    <role>tracking_var_1</role>
+                    <primary>true</primary>
+                    <name>bom_id</name>
+                    <xpath>/execute/request-wrapper/bom_id</xpath>
+                    <messageContextRef refUri="messagecontext_20"/>
+                    <output name="output_8">
+                        <messageContextRef refUri="messagecontext_7"/>
+                    </output>
+                </trackingVariable>
+                <trackingVariable>
+                    <role>tracking_var_2</role>
+                    <primary>false</primary>
+                    <name>tracking_var_2</name>
+                    <messageContextRef refUri="messagecontext_20"/>
+                    <output name="output_10">
+                        <messageContextRef refUri="messagecontext_9"/>
+                    </output>
+                </trackingVariable>
+                <trackingVariable>
+                    <role>tracking_var_3</role>
+                    <primary>false</primary>
+                    <name>tracking_var_3</name>
+                    <messageContextRef refUri="messagecontext_20"/>
+                    <output name="output_12">
+                        <messageContextRef refUri="messagecontext_11"/>
+                    </output>
+                </trackingVariable>
+            </trackingVariableGroup>
+        </processor>
+        <processor name="processor_24">
+            <type>transformer</type>
+            <role>transformer:response-map</role>
+            <resourceGroup name="resourcegroup_27">
+                <resource name="resource_28" location="../resources/processor_24/resourcegroup_27/req_9a8c4aeb29ed49eb86175c3ae88ab44b.xsl" type="xslt"/>
+            </resourceGroup>
+            <resourceRef refUri="messagecontext_71">
+                <role>secondary-source</role>
+                <subRole>Save_AI_Advisory_REQUEST</subRole>
+            </resourceRef>
+            <input name="input_25">
+                <messageContextRef refUri="messagecontext_20"/>
+            </input>
+            <output name="output_26">
+                <messageContextRef refUri="messagecontext_18"/>
+            </output>
+            <property name="has-mappings" value="true"/>
+        </processor>
+        <processor name="processor_43">
+            <type>transformer</type>
+            <role>transformer:response-map</role>
+            <resourceGroup name="resourcegroup_46">
+                <resource name="resource_47" location="../resources/processor_43/resourcegroup_46/req_c01d575fcff947ce8fbb755c4cc66c65.xsl" type="xslt"/>
+            </resourceGroup>
+            <input name="input_44">
+                <messageContextRef refUri="messagecontext_20"/>
+            </input>
+            <output name="output_45">
+                <messageContextRef refUri="messagecontext_37"/>
+            </output>
+            <property name="has-mappings" value="true"/>
+        </processor>
+        <processor name="processor_60">
+            <type>transformer</type>
+            <role>transformer:response-map</role>
+            <resourceGroup name="resourcegroup_63">
+                <resource name="resource_64" location="../resources/processor_60/resourcegroup_63/req_ef6cfc6ea9c34cec918cbc9394a2a163.xsl" type="xslt"/>
+            </resourceGroup>
+            <resourceRef refUri="messagecontext_39">
+                <role>secondary-source</role>
+                <subRole>Get_BOM_Findings</subRole>
+            </resourceRef>
+            <input name="input_61">
+                <messageContextRef refUri="messagecontext_20"/>
+            </input>
+            <output name="output_62">
+                <messageContextRef refUri="messagecontext_54"/>
+            </output>
+            <property name="has-mappings" value="true"/>
+        </processor>
+        <processor name="processor_77">
+            <type>transformer</type>
+            <role>transformer:response-map</role>
+            <resourceGroup name="resourcegroup_80">
+                <resource name="resource_81" location="../resources/processor_77/resourcegroup_80/req_c4e222da533f4ebb9519ba9c0e79e60b.xsl" type="xslt"/>
+            </resourceGroup>
+            <resourceRef refUri="messagecontext_56">
+                <role>secondary-source</role>
+                <subRole>Invoke_Gemini_API</subRole>
+            </resourceRef>
+            <input name="input_78">
+                <messageContextRef refUri="messagecontext_20"/>
+            </input>
+            <output name="output_79">
+                <messageContextRef refUri="messagecontext_71"/>
+            </output>
+            <property name="has-mappings" value="true"/>
+        </processor>
+        <messageContext name="messagecontext_4">
+            <resourceRef refUri="processor_1/resourcegroup_2/resource_3"/>
+            <rootElement elementName="metadata" namespace="http://www.oracle.com/2014/03/ic/integration/metadata"/>
+        </messageContext>
+        <messageContext name="messagecontext_7">
+            <rootElement elementName="string" namespace="http://www.w3.org/2001/XMLSchema"/>
+        </messageContext>
+        <messageContext name="messagecontext_9">
+            <rootElement elementName="string" namespace="http://www.w3.org/2001/XMLSchema"/>
+        </messageContext>
+        <messageContext name="messagecontext_11">
+            <rootElement elementName="string" namespace="http://www.w3.org/2001/XMLSchema"/>
+        </messageContext>
+        <messageContext name="messagecontext_18">
+            <resourceRef refUri="application_13/outbound_14/resourcegroup_15/resource_17"/>
+            <rootElement elementName="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/VisualBuilder_Trigger_REQUEST/types"/>
+            <wsdlMessage messageName="executeResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/VisualBuilder_Trigger_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_20">
+            <resourceRef refUri="application_13/outbound_14/resourcegroup_15/resource_17"/>
+            <rootElement elementName="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/VisualBuilder_Trigger_REQUEST/types"/>
+            <wsdlMessage messageName="executeRequestMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/VisualBuilder_Trigger_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_22">
+            <resourceRef refUri="application_13/outbound_14/resourcegroup_15/resource_17"/>
+            <rootElement elementName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/generic/rest/fault/REST/VisualBuilder_Trigger"/>
+            <wsdlMessage messageName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/VisualBuilder_Trigger_REQUEST" partName="parameters"/>
+            <wsdlFault faultName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/VisualBuilder_Trigger_REQUEST"/>
+        </messageContext>
+        <messageContext name="messagecontext_37">
+            <resourceRef refUri="application_31/inbound_32/resourcegroup_33/resource_36"/>
+            <rootElement elementName="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Get_BOM_Findings_REQUEST/types"/>
+            <wsdlMessage messageName="executeRequestMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Get_BOM_Findings_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_39">
+            <resourceRef refUri="application_31/inbound_32/resourcegroup_33/resource_36"/>
+            <rootElement elementName="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Get_BOM_Findings_REQUEST/types"/>
+            <wsdlMessage messageName="executeResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Get_BOM_Findings_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_41">
+            <resourceRef refUri="application_31/inbound_32/resourcegroup_33/resource_36"/>
+            <rootElement elementName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/generic/rest/fault/REST/Get_BOM_Findings"/>
+            <wsdlMessage messageName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Get_BOM_Findings_REQUEST" partName="parameters"/>
+            <wsdlFault faultName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Get_BOM_Findings_REQUEST"/>
+        </messageContext>
+        <messageContext name="messagecontext_54">
+            <resourceRef refUri="application_48/inbound_49/resourcegroup_50/resource_53"/>
+            <rootElement elementName="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_API_REQUEST/types"/>
+            <wsdlMessage messageName="executeRequestMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_API_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_56">
+            <resourceRef refUri="application_48/inbound_49/resourcegroup_50/resource_53"/>
+            <rootElement elementName="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_API_REQUEST/types"/>
+            <wsdlMessage messageName="executeResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_API_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_58">
+            <resourceRef refUri="application_48/inbound_49/resourcegroup_50/resource_53"/>
+            <rootElement elementName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/generic/rest/fault/REST/Invoke_Gemini_API"/>
+            <wsdlMessage messageName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_API_REQUEST" partName="parameters"/>
+            <wsdlFault faultName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_API_REQUEST"/>
+        </messageContext>
+        <messageContext name="messagecontext_71">
+            <resourceRef refUri="application_65/inbound_66/resourcegroup_67/resource_70"/>
+            <rootElement elementName="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST/types"/>
+            <wsdlMessage messageName="executeRequestMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_73">
+            <resourceRef refUri="application_65/inbound_66/resourcegroup_67/resource_70"/>
+            <rootElement elementName="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST/types"/>
+            <wsdlMessage messageName="executeResponseMessage" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST" partName="parameters"/>
+        </messageContext>
+        <messageContext name="messagecontext_75">
+            <resourceRef refUri="application_65/inbound_66/resourcegroup_67/resource_70"/>
+            <rootElement elementName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/generic/rest/fault/REST/Save_AI_Advisory"/>
+            <wsdlMessage messageName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST" partName="parameters"/>
+            <wsdlFault faultName="APIInvocationError" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST"/>
+        </messageContext>
+        <commonNamespaceMaps/>
+        <orchestration>
+            <integrationMetadata id="im0" refUri="processor_1"/>
+            <receive trackingRefUri="processor_6" id="r0" refUri="application_13/outbound_14/output_21"/>
+            <transformer id="m1" refUri="processor_43"/>
+            <invoke id="i0" refUri="application_31" name="REST2" end2EndJsonEnabled="false"/>
+            <transformer id="m2" refUri="processor_60"/>
+            <invoke id="i1" refUri="application_48" name="REST3" end2EndJsonEnabled="false"/>
+            <transformer id="m3" refUri="processor_77"/>
+            <invoke id="i2" refUri="application_65" name="REST4" end2EndJsonEnabled="false"/>
+            <transformer id="m0" refUri="processor_24"/>
+            <reply id="y0" refUri="application_13/outbound_14/input_19"/>
+        </orchestration>
+    </ns3:icsflow>
+</ns3:icsproject>
