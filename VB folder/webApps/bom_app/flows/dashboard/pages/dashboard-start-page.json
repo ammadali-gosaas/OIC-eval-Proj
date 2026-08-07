@@ -10,6 +10,10 @@
       "type": "boolean",
       "defaultValue": false
     },
+    "isRefreshing": {
+      "type": "boolean",
+      "defaultValue": false
+    },
     "dashboardData": {
       "type": "object",
       "defaultValue": {
@@ -30,6 +34,13 @@
       "chains": [
         {
           "chainId": "loadDashboardMetrics"
+        }
+      ]
+    },
+    "triggerRefreshPLM": {
+      "chains": [
+        {
+          "chainId": "refreshPLMChain"
         }
       ]
     },
@@ -97,13 +108,85 @@
         {
           "chainId": "navToBomDetail",
           "parameters": {
-            "event": "{{ $event }}"
+            "bomId": "{{ $event.detail.value ? String($event.detail.value.key) : null }}"
           }
         }
       ]
     }
   },
   "chains": {
+    "refreshPLMChain": {
+      "description": "Triggers PLM Data Ingestion directly in OIC for organization EVP and reloads dashboard metrics",
+      "root": "setRefreshingTrue",
+      "actions": {
+        "setRefreshingTrue": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isRefreshing": {
+              "source": true
+            }
+          },
+          "outcomes": {
+            "success": "callPLMIngestionREST"
+          }
+        },
+        "callPLMIngestionREST": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "PLM_Integ_Data_Ingest/postRefreshPlm",
+            "body": {
+              "organizationCode": "GS01"
+            }
+          },
+          "outcomes": {
+            "success": "reloadMetrics",
+            "failure": "notifyError"
+          }
+        },
+        "reloadMetrics": {
+          "module": "vb/action/builtin/callChainAction",
+          "parameters": {
+            "id": "loadDashboardMetrics"
+          },
+          "outcomes": {
+            "success": "notifySuccess",
+            "failure": "setRefreshingFalse"
+          }
+        },
+        "notifySuccess": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "PLM Data Ingestion triggered successfully",
+            "type": "confirmation",
+            "displayMode": "transient"
+          },
+          "outcomes": {
+            "success": "setRefreshingFalse"
+          }
+        },
+        "notifyError": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Failed to trigger PLM ingestion. Please check OIC connection logs.",
+            "type": "error",
+            "displayMode": "persist"
+          },
+          "outcomes": {
+            "success": "setRefreshingFalse"
+          }
+        },
+        "setRefreshingFalse": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isRefreshing": {
+              "source": false
+            }
+          }
+        }
+      }
+    },
     "loadDashboardMetrics": {
       "description": "Fetch live ORDS dashboard REST payload and BOM list",
       "root": "callDashboardREST",
@@ -373,14 +456,32 @@
       }
     },
     "navToBomDetail": {
-      "description": "Navigate to BOM Detail flow",
-      "root": "navigateToBomDetail",
+      "description": "Navigate to BOM Detail flow on row selection",
+      "variables": {
+        "bomId": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "checkBomId",
       "actions": {
+        "checkBomId": {
+          "module": "vb/action/builtin/ifAction",
+          "parameters": {
+            "condition": "[[ Boolean($chain.variables.bomId) ]]"
+          },
+          "outcomes": {
+            "true": "navigateToBomDetail"
+          }
+        },
         "navigateToBomDetail": {
           "module": "vb/action/builtin/navigateAction",
           "parameters": {
             "target": "parent",
-            "flow": "bom-detail"
+            "flow": "bom-detail",
+            "params": {
+              "bomId": "{{ $chain.variables.bomId }}"
+            }
           },
           "@dt": {
             "targetType": "flow"
@@ -391,11 +492,11 @@
   },
   "imports": {
     "components": {
-      "oj-table": {
-        "path": "ojs/ojtable"
-      },
       "oj-paging-control": {
         "path": "ojs/ojpagingcontrol"
+      },
+      "oj-table": {
+        "path": "ojs/ojtable"
       }
     }
   }

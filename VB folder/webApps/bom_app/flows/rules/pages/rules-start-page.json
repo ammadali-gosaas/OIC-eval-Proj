@@ -6,7 +6,7 @@
       "type": "vb/ServiceDataProvider",
       "defaultValue": {
         "endpoint": "BOMValidation/listRules",
-        "keyAttributes": "rule_id",
+        "keyAttributes": "rule_code",
         "itemsPath": "items"
       }
     },
@@ -20,13 +20,13 @@
     "newRuleSeverity": { "type": "string", "defaultValue": "CRITICAL" },
     "scheduleTime": { "type": "string" },
     "scheduleInterval": { "type": "string", "defaultValue": "Daily" },
-    "editRuleId": { "type": "number" },
     "editRuleCode": { "type": "string" },
     "editRuleName": { "type": "string" },
     "editRuleDescription": { "type": "string" },
     "editRuleSeverity": { "type": "string" },
-    "editRuleThreshold": { "type": "string" },
+    "editRuleConfig": { "type": "string" },
     "editRuleEnabled": { "type": "string", "defaultValue": "Y" },
+    "editConfigState": { "type": "any", "defaultValue": {} },
     "deleteRuleCode": { "type": "string" },
     "deleteRuleName": { "type": "string" }
   },
@@ -75,7 +75,7 @@
               "rule_name": "{{ $page.variables.newRuleName }}",
               "description": "{{ $page.variables.newRuleDescription }}",
               "severity": "{{ $page.variables.newRuleSeverity }}",
-              "threshold_or_configuration": "Prototype Rule"
+              "rule_config": "{}"
             }
           },
           "outcomes": { "success": "refreshRulesList", "failure": "fireErrorNotification" }
@@ -131,27 +131,38 @@
     },
     "OpenEditRuleModalChain": {
       "variables": {
-        "ruleId": { "type": "number", "input": "fromCaller" },
         "ruleCode": { "type": "string", "input": "fromCaller" },
         "ruleName": { "type": "string", "input": "fromCaller" },
         "description": { "type": "string", "input": "fromCaller" },
         "severity": { "type": "string", "input": "fromCaller" },
-        "threshold": { "type": "string", "input": "fromCaller" },
+        "config": { "type": "string", "input": "fromCaller" },
         "enabledFlag": { "type": "string", "input": "fromCaller" }
       },
-      "root": "openModal",
+      "root": "parseConfigJS",
       "actions": {
+        "parseConfigJS": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseRuleConfig",
+            "params": [
+              "{{ $chain.variables.ruleCode }}",
+              "{{ $chain.variables.config }}"
+            ]
+          },
+          "outcomes": { "success": "openModal" }
+        },
         "openModal": {
           "module": "vb/action/builtin/assignVariablesAction",
           "parameters": {
             "$page.variables.isEditRuleModalOpen": { "source": true },
-            "$page.variables.editRuleId": { "source": "{{ $chain.variables.ruleId }}" },
             "$page.variables.editRuleCode": { "source": "{{ $chain.variables.ruleCode }}" },
             "$page.variables.editRuleName": { "source": "{{ $chain.variables.ruleName }}" },
             "$page.variables.editRuleDescription": { "source": "{{ $chain.variables.description }}" },
             "$page.variables.editRuleSeverity": { "source": "{{ $chain.variables.severity }}" },
-            "$page.variables.editRuleThreshold": { "source": "{{ $chain.variables.threshold }}" },
-            "$page.variables.editRuleEnabled": { "source": "{{ $chain.variables.enabledFlag }}" }
+            "$page.variables.editRuleConfig": { "source": "{{ $chain.variables.config }}" },
+            "$page.variables.editRuleEnabled": { "source": "{{ $chain.variables.enabledFlag }}" },
+            "$page.variables.editConfigState": { "source": "{{ $chain.results.parseConfigJS }}" }
           }
         }
       }
@@ -163,18 +174,30 @@
       }
     },
     "SubmitEditRuleChain": {
-      "root": "callUpdateRuleApi",
+      "root": "buildConfigJS",
       "actions": {
+        "buildConfigJS": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "buildRuleConfig",
+            "params": [
+              "{{ $page.variables.editRuleCode }}",
+              "{{ $page.variables.editConfigState }}"
+            ]
+          },
+          "outcomes": { "success": "callUpdateRuleApi" }
+        },
         "callUpdateRuleApi": {
           "module": "vb/action/builtin/restAction",
           "parameters": {
             "endpoint": "BOMValidation/updateRule",
-            "uriParams": { "rule_id": "[[ $page.variables.editRuleId ]]" },
+            "uriParams": { "rule_id": "[[ $page.variables.editRuleCode ]]" },
             "body": {
               "rule_name": "{{ $page.variables.editRuleName }}",
               "description": "{{ $page.variables.editRuleDescription }}",
               "severity": "{{ $page.variables.editRuleSeverity }}",
-              "threshold_or_configuration": "{{ $page.variables.editRuleThreshold }}",
+              "rule_config": "{{ $chain.results.buildConfigJS }}",
               "enabled_flag": "{{ $page.variables.editRuleEnabled }}"
             }
           },
@@ -252,12 +275,11 @@
         { 
           "chainId": "OpenEditRuleModalChain", 
           "parameters": { 
-            "ruleId": "{{ $event.currentTarget.dataset.ruleId }}",
             "ruleCode": "{{ $event.currentTarget.dataset.ruleCode }}",
             "ruleName": "{{ $event.currentTarget.dataset.ruleName }}",
             "description": "{{ $event.currentTarget.dataset.description }}",
             "severity": "{{ $event.currentTarget.dataset.severity }}",
-            "threshold": "{{ $event.currentTarget.dataset.threshold }}",
+            "config": "{{ $event.currentTarget.dataset.config }}",
             "enabledFlag": "{{ $event.currentTarget.dataset.enabled }}"
           } 
         } 

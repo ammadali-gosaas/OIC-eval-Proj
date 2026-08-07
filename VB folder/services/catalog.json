@@ -15,6 +15,22 @@
                     "description": "172.105.152.7"
                 }
             ]
+        },
+        "OIC_PLM_API": {
+            "servers": [
+                {
+                    "url": "https://gosaas-oic-gosaas-ia.integration.us-ashburn-1.ocp.oraclecloud.com",
+                    "description": "Gosaas Oic Gosaas Ia Integration Us Ashburn 1 Ocp Oraclecloud Com",
+                    "x-vb": {
+                        "authentication": {
+                            "authenticated": {
+                                "type": "oauth2_user_assertion",
+                                "scope": "https://gosaas-oic-gosaas-ia.integration.us-ashburn-1.ocp.oraclecloud.com:443urn:opc:resource:consumer::all"
+                            }
+                        }
+                    }
+                }
+            ]
         }
       }
 }

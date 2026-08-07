@@ -4,5 +4,10 @@
   "defaultPage": "bom-detail-start",
   "services": {},
   "types": {},
-  "variables": {}
+  "variables": {
+    "bomId": {
+      "type": "string",
+      "input": "fromUrl"
+    }
+  }
 }

@@ -21,7 +21,7 @@
     </div>
   </div>
 
-  <!-- Navigation Tabs (With your exact hover transitions restored) -->
+  <!-- Navigation Tabs -->
   <div class="flex flex-wrap gap-2 bg-slate-100/50 p-2 rounded-xl border border-slate-200">
     <button on-click="[[ $listeners.clickOverview ]]"
       :class="[[ 'px-6 py-2.5 rounded-lg text-sm font-bold transition-all ' + ($variables.selectedTab === 'Overview' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900') ]]">Overview</button>
@@ -35,100 +35,152 @@
       :class="[[ 'px-6 py-2.5 rounded-lg text-sm font-bold transition-all ' + ($variables.selectedTab === 'History' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900') ]]">History</button>
   </div>
 
-  <!-- 1. Overview Tab -->
+ <!-- 1. Overview Tab -->
   <oj-bind-if test="[[ $variables.selectedTab === 'Overview' ]]">
     <div class="grid xl:grid-cols-3 gap-6">
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 xl:col-span-2">
-        <h3 class="font-black text-xl mb-5 text-slate-900">BOM Header Fields</h3>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">BOM ID</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.bomId ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">BILL SEQUENCE ID</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.billSequenceId ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">ORGANIZATION CODE</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.orgCode ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">ITEM NUMBER</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.itemNumber ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">STRUCTURE NAME</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.structureName ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">DESCRIPTION</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.description ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">EFFECTIVITY CONTROL</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.effectivityControl ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">SOURCE UPDATED AT</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.sourceUpdatedAt ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">IMPORT BATCH ID</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.importBatchId ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">IMPORTED AT</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.importedAt ]]"></oj-bind-text></div>
-          </div>
-          <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
-            <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">HEALTH SCORE</div>
-            <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text
-                value="[[ $variables.bomData.healthScore ]]"></oj-bind-text></div>
+      
+      <!-- Left Column: Headers & AI Summary -->
+      <div class="xl:col-span-2 space-y-6">
+        
+        <!-- BOM Header Fields Card -->
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+          <h3 class="font-black text-xl mb-5 text-slate-900">BOM Header Fields</h3>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">BOM ID</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.bomId ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">BILL SEQUENCE ID</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.billSequenceId ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">ORGANIZATION CODE</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.orgCode ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">ITEM NUMBER</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.itemNumber ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">STRUCTURE NAME</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.structureName ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">DESCRIPTION</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.description ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">EFFECTIVITY CONTROL</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.effectivityControl ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">SOURCE UPDATED AT</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.sourceUpdatedAt ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">IMPORT BATCH ID</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.importBatchId ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">IMPORTED AT</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.importedAt ]]"></oj-bind-text></div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div class="text-[10px] uppercase font-bold text-slate-500 mb-1 tracking-wider">HEALTH SCORE</div>
+              <div class="font-black text-slate-800 text-sm break-words"><oj-bind-text value="[[ $variables.bomData.healthScore ]]"></oj-bind-text></div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col h-full">
-        <h3 class="font-black text-xl mb-5 text-slate-900">Actions</h3>
-        <div class="space-y-4">
-          <div class="grid grid-cols-2 gap-3">
-            <!-- Restored your hover effects -->
-            <button
-              class="w-full px-4 py-2.5 rounded-lg bg-[#0f172a] text-white font-bold text-sm transition-all hover:bg-slate-800 shadow-sm">Run
-              validation</button>
-            <button on-click="[[ $listeners.clickRefresh ]]" :disabled="[[ $variables.isRefreshing ]]"
-              class="w-full px-4 py-2.5 rounded-lg bg-[#059669] text-white font-bold text-sm transition-all hover:bg-emerald-700 shadow-sm">
-              <oj-bind-if test="[[ $variables.isRefreshing ]]">Refreshing…</oj-bind-if>
-              <oj-bind-if test="[[ !$variables.isRefreshing ]]">Refresh</oj-bind-if>
+
+        <!-- NEW AI Executive Summary Card (Now with the button inside!) -->
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col">
+          <div class="flex flex-wrap justify-between items-center mb-5 gap-4">
+            <h3 class="font-black text-xl text-slate-900 flex items-center gap-2">
+              <svg class="w-6 h-6 text-violet-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+              AI Executive Summary
+            </h3>
+            <span :class="[[ 'text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border ' + ($variables.advisoryStatus === 'COMPLETED' ? 'bg-violet-100 text-violet-900 border-violet-200' : ($variables.advisoryStatus === 'GENERATING' ? 'bg-amber-100 text-amber-900 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200')) ]]">
+              Status: <oj-bind-text value="[[ $variables.advisoryStatus ]]"></oj-bind-text>
+            </span>
+          </div>
+          
+          <!-- Empty State -->
+          <oj-bind-if test="[[ $variables.advisoryStatus === 'NOT_REQUESTED' ]]">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center shadow-inner mb-6">
+              <p class="text-sm text-slate-600 font-medium">No global AI Advisory has been generated for this BOM yet.</p>
+            </div>
+          </oj-bind-if>
+
+          <!-- Populated State -->
+          <oj-bind-if test="[[ $variables.advisoryStatus !== 'NOT_REQUESTED' ]]">
+            <div class="space-y-5 mb-6">
+              <div>
+                <b class="text-[10px] uppercase font-black text-slate-500 tracking-wider block mb-2">Business Context & Risks</b>
+                <div class="text-sm text-slate-800 bg-violet-50/50 border border-violet-100 rounded-xl p-5 shadow-sm leading-relaxed font-medium whitespace-pre-wrap"><oj-bind-text value="[[ $variables.advisoryText ]]"></oj-bind-text></div>
+              </div>
+              <oj-bind-if test="[[ $variables.advisoryMitigation ]]">
+                <div>
+                  <b class="text-[10px] uppercase font-black text-slate-500 tracking-wider block mb-2">Suggested Mitigation Action</b>
+                  <div class="text-sm text-slate-800 bg-emerald-50/50 border border-emerald-100 rounded-xl p-5 shadow-sm leading-relaxed font-medium whitespace-pre-wrap"><oj-bind-text value="[[ $variables.advisoryMitigation ]]"></oj-bind-text></div>
+                </div>
+              </oj-bind-if>
+            </div>
+          </oj-bind-if>
+
+          <!-- Action Button Moved Here -->
+          <div class="mt-auto pt-5 border-t border-slate-100 flex justify-end">
+            <button on-click="[[ $listeners.clickRequestAdvisory ]]"
+              class="px-5 py-2.5 rounded-lg bg-violet-600 text-white font-bold text-sm transition-all hover:bg-violet-700 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="[[ $variables.advisoryStatus === 'GENERATING' ]]">
+              
+              <oj-bind-if test="[[ $variables.advisoryStatus === 'GENERATING' ]]">
+                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Generating...
+              </oj-bind-if>
+              
+              <oj-bind-if test="[[ $variables.advisoryStatus !== 'GENERATING' ]]">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                <oj-bind-text value="[[ $variables.advisoryStatus === 'COMPLETED' ? 'Refresh AI Advisory' : 'Generate AI Advisory' ]]"></oj-bind-text>
+              </oj-bind-if>
+              
             </button>
           </div>
-          <button
-            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 font-bold text-sm transition-all hover:bg-slate-50 shadow-sm">View
-            integration logs</button>
         </div>
-        <div class="mt-auto pt-6">
-          <button on-click="[[ $listeners.clickRequestAdvisory ]]"
-            class="w-full px-4 py-3 rounded-lg bg-[#f3e8ff] text-[#581c87] font-bold text-sm transition-all hover:bg-purple-200 shadow-sm border border-[#e9d5ff] flex justify-center items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-            </svg>
-            Request Advisory AI
+
+      </div>
+
+      <!-- Right Column: Actions -->
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex flex-col h-fit">
+        <h3 class="font-black text-xl mb-5 text-slate-900">Actions</h3>
+        <div class="space-y-4">
+          <button
+            class="w-full px-4 py-2.5 rounded-lg bg-[#0f172a] text-white font-bold text-sm transition-all hover:bg-slate-800 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+            on-click="[[ $listeners.clickRunValidation ]]"
+            :disabled="[[ $variables.isValidating ]]">
+            <oj-bind-if test="[[ $variables.isValidating ]]">
+              <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              Running validation...
+            </oj-bind-if>
+            <oj-bind-if test="[[ !$variables.isValidating ]]">
+              Run validation
+            </oj-bind-if>
+          </button>
+          
+          <button
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 font-bold text-sm transition-all hover:bg-slate-50 shadow-sm"
+            on-click="[[$listeners.buttonClick]]">
+            View integration logs
           </button>
         </div>
       </div>
+      
     </div>
   </oj-bind-if>
-
   <!-- 2. Components Tab -->
   <oj-bind-if test="[[ $variables.selectedTab === 'Components' ]]">
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -141,145 +193,165 @@
 
       <!-- Rebuilt table as flex grid for Visual Builder compatibility -->
       <div class="overflow-x-auto">
-        <div class="min-w-[800px] flex flex-col w-full text-sm text-left">
+        <oj-table id="componentsTreeTable"
+          aria-label="Components Tree"
+          data="[[ $page.functions.getTreeDataProvider($variables.componentsList) ]]"
+          class="w-full"
+          style="min-height: 400px; width: 100%;"
+          columns='[
+            {"headerText": "Component Item", "field": "itemNumber", "sortable": "disabled", "template": "itemTemplate"},
+            {"headerText": "Item Class", "field": "itemClass", "sortable": "disabled", "template": "classTemplate"},
+            {"headerText": "Qty", "field": "qty", "sortable": "disabled", "template": "qtyTemplate"},
+            {"headerText": "UOM", "field": "uom", "sortable": "disabled", "template": "uomTemplate"},
+            {"headerText": "Status", "field": "status", "sortable": "disabled", "template": "statusTemplate"}
+          ]'>
+          
+          <template slot="itemTemplate" data-oj-as="cell">
+            <div class="flex items-center">
+              <oj-row-expander context="[[cell]]"></oj-row-expander>
+              <span class="font-black text-slate-900 text-sm ml-2">
+                <oj-bind-text value="[[ cell.data ]]"></oj-bind-text>
+              </span>
+              <oj-bind-if test="[[ cell.row.hasIssue ]]">
+                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-rose-200 text-rose-800 uppercase tracking-widest shadow-sm border border-rose-300">⚠️ Issue</span>
+              </oj-bind-if>
+            </div>
+          </template>
 
-          <div class="flex items-stretch bg-white border-b border-slate-200">
-            <div class="p-4 w-1/4 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Hierarchy</div>
-            <div class="p-4 w-1/4 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Component Item</div>
-            <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Item Class</div>
-            <div class="p-4 w-1/12 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Qty</div>
-            <div class="p-4 w-1/12 font-bold text-slate-500 uppercase tracking-wider text-[10px]">UOM</div>
-            <div class="p-4 w-1/6 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Status</div>
-          </div>
+          <template slot="classTemplate" data-oj-as="cell">
+            <span class="inline-flex items-center rounded-full bg-white text-slate-700 shadow-sm border border-slate-200 text-[10px] font-bold px-2.5 py-1">
+              <oj-bind-text value="[[ cell.data ]]"></oj-bind-text>
+            </span>
+          </template>
 
-          <!-- DYNAMIC LOOP -->
-          <oj-bind-for-each data="[[ $variables.componentsList ]]">
-            <template>
-              <div
-                :class="[[ 'flex items-center border-b border-slate-100 transition-colors ' + ($current.data.hasIssue ? 'bg-rose-50/70 hover:bg-rose-100 border-l-4 border-rose-500' : 'bg-white hover:bg-slate-50 border-l-4 border-transparent') ]]">
+          <template slot="qtyTemplate" data-oj-as="cell">
+            <span class="font-black text-slate-800 text-sm">
+              <oj-bind-text value="[[ cell.data ]]"></oj-bind-text>
+            </span>
+          </template>
 
-                <div class="p-4 w-1/4 flex items-center"
-                  :style="[[ 'padding-left: ' + ($current.data.level * 1.5) + 'rem' ]]">
-                  <oj-bind-if test="[[ $current.data.level > 1 ]]">
-                    <span class="text-slate-300 font-mono font-bold mr-2 whitespace-pre">└─</span>
-                  </oj-bind-if>
-                  <span
-                    class="font-mono text-[10px] font-bold bg-white px-2 py-1 rounded text-slate-600 border border-slate-200 shadow-sm">
-                    Lvl <oj-bind-text value="[[ $current.data.level ]]"></oj-bind-text>
-                  </span>
-                </div>
+          <template slot="uomTemplate" data-oj-as="cell">
+            <span class="text-slate-700 font-bold text-xs">
+              <oj-bind-text value="[[ cell.data ]]"></oj-bind-text>
+            </span>
+          </template>
 
-                <div class="p-4 w-1/4 font-black text-slate-900 text-sm flex items-center">
-                  <oj-bind-text value="[[ $current.data.itemNumber ]]"></oj-bind-text>
-                  <oj-bind-if test="[[ $current.data.hasIssue ]]">
-                    <span
-                      class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-rose-200 text-rose-800 uppercase tracking-widest shadow-sm border border-rose-300">⚠️
-                      Issue Detected</span>
-                  </oj-bind-if>
-                </div>
-
-                <div class="p-4 w-1/6 flex items-center"><span
-                    class="inline-flex items-center rounded-full bg-white text-slate-700 shadow-sm border border-slate-200 text-[10px] font-bold px-2.5 py-1"><oj-bind-text
-                      value="[[ $current.data.itemClass ]]"></oj-bind-text></span></div>
-                <div class="p-4 w-1/12 font-black text-slate-800 text-sm flex items-center"><oj-bind-text
-                    value="[[ $current.data.qty ]]"></oj-bind-text></div>
-                <div class="p-4 w-1/12 text-slate-700 font-bold text-xs flex items-center"><oj-bind-text
-                    value="[[ $current.data.uom ]]"></oj-bind-text></div>
-
-                <div class="p-4 w-1/6 flex items-center">
-                  <span
-                    :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] px-2.5 py-1 border ' + ($current.data.status === 'Active' || $current.data.status === 'Released' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-200 text-slate-800 border-slate-300') ]]">
-                    <oj-bind-text value="[[ $current.data.status ]]"></oj-bind-text>
-                  </span>
-                </div>
-              </div>
-            </template>
-          </oj-bind-for-each>
-        </div>
+          <template slot="statusTemplate" data-oj-as="cell">
+            <span :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] px-2.5 py-1 border ' + (cell.data === 'ACTIVE' || cell.data === 'Active' || cell.data === 'Released' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-200 text-slate-800 border-slate-300') ]]">
+              <oj-bind-text value="[[ cell.data ]]"></oj-bind-text>
+            </span>
+          </template>
+        </oj-table>
       </div>
     </div>
   </oj-bind-if>
+
   <!-- 3. Findings Tab -->
   <oj-bind-if test="[[ $variables.selectedTab === 'Findings' ]]">
     <div class="space-y-6">
 
       <!-- Filter Bar -->
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex gap-3 flex-wrap">
-        <select
-          class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none">
-          <option>All Statuses</option>
-          <option>OPEN</option>
-          <option>REVIEWED</option>
-          <option>IGNORED</option>
+      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex gap-3 flex-wrap items-center">
+        
+        <!-- Status Filter Dropdown -->
+        <select :value="[[ $variables.filterStatus ]]" on-change="[[ $listeners.changeFilterStatus ]]" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none">
+          <option value="">All Statuses</option>
+          <option value="OPEN">OPEN</option>
+          <option value="REVIEWED">REVIEWED</option>
+          <option value="IGNORED">IGNORED</option>
         </select>
-        <select
-          class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none">
-          <option>All Severities</option>
-          <option>CRITICAL</option>
-          <option>HIGH</option>
-          <option>WARNING</option>
-          <option>INFO</option>
+
+        <!-- Severity Filter Dropdown -->
+        <select :value="[[ $variables.filterSeverity ]]" on-change="[[ $listeners.changeFilterSeverity ]]" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none">
+          <option value="">All Severities</option>
+          <option value="CRITICAL">CRITICAL</option>
+          <option value="HIGH">HIGH</option>
+          <option value="WARNING">WARNING</option>
+          <option value="INFO">INFO</option>
         </select>
-        <button
-          class="px-4 py-2 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-700 hover:bg-slate-50 transition-all shadow-sm">Clear
-          Filters</button>
+
+        <!-- Clear Filters Button -->
+        <button on-click="[[ $listeners.clickClearFilters ]]" class="px-4 py-2 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+          Clear Filters
+        </button>
+
       </div>
 
       <div class="grid xl:grid-cols-3 gap-6 items-start">
 
-        <!-- Left Column: DYNAMIC Finding Cards List (live from BOMValidation/listFindings) -->
+        <!-- Left Column: DYNAMIC Finding Cards List -->
         <div class="xl:col-span-2 space-y-4">
-          <oj-bind-for-each data="[[ $variables.findingsSdp ]]">
-            <template>
-              <!-- Card with click handler to select finding for sidebar -->
-              <div on-click="[[ $listeners.clickFinding ]]" :data-finding-id="[[ $current.data.finding_id ]]"
-                :class="[[ 'w-full text-left bg-white p-5 rounded-2xl transition-all border shadow-sm cursor-pointer ' + (String($variables.selectedFindingId) === String($current.data.finding_id) ? 'ring-2 ring-slate-900 border-transparent shadow-md' : 'border-slate-200 hover:shadow-md hover:border-slate-300') ]]">
-                <div class="flex justify-between gap-4">
-                  <div>
-                    <div class="flex items-center gap-3 mb-2">
-                      <b class="text-xl text-slate-900 font-black"><oj-bind-text
-                          value="[[ $current.data.item_number ]]"></oj-bind-text></b>
-                      <span
-                        class="inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 border border-slate-200 bg-white text-slate-700"><oj-bind-text
-                          value="[[ $current.data.rule_name ]]"></oj-bind-text></span>
-                    </div>
-                    <div
-                      class="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200">
-                      <oj-bind-text
-                        value="[[ $current.data.rule_code + ' · Finding #' + $current.data.finding_id ]]"></oj-bind-text>
-                    </div>
-                  </div>
-                  <div class="flex flex-col gap-2 items-end">
-                    <span
-                      :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800 border-rose-200' : ($current.data.severity === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200' : ($current.data.severity === 'WARNING' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-800 border-slate-200'))) ]]">
-                      <oj-bind-text value="[[ $current.data.severity ]]"></oj-bind-text>
-                    </span>
-                    <span
-                      :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.issue_status === 'OPEN' ? 'bg-amber-100 text-amber-800 border-amber-200' : ($current.data.issue_status === 'REVIEWED' ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-slate-200 text-slate-700 border-slate-300')) ]]">
-                      <oj-bind-text value="[[ $current.data.issue_status ]]"></oj-bind-text>
-                    </span>
-                  </div>
-                </div>
-                <div
-                  class="text-sm text-slate-800 font-medium mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner flex items-center gap-3">
-                  <span
-                    class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text
-                      value="[[ $current.data.actual_value || 'NULL' ]]"></oj-bind-text></span>
-                  <span class="text-slate-400 font-black">→</span>
-                  <span class="text-slate-500 text-xs">expected</span>
-                  <span
-                    class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text
-                      value="[[ $current.data.expected_value || '—' ]]"></oj-bind-text></span>
-                </div>
+          
+          <!-- Empty State Feedback Message -->
+          <oj-bind-if test="[[ $variables.hasNoFindings ]]">
+            <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-sm w-full">
+              <div class="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                </svg>
               </div>
-            </template>
-          </oj-bind-for-each>
-        </div>
+              <h3 class="text-xl font-black text-slate-900 mb-1">No Findings Found</h3>
+              <p class="text-sm text-slate-500 font-medium max-w-md mx-auto mb-6">
+                No validation findings match your current filter criteria. Try selecting a different status or severity filter.
+              </p>
+              <button on-click="[[ $listeners.clickClearFilters ]]" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-black text-sm hover:bg-slate-800 transition-all shadow-md">
+                Clear All Filters
+              </button>
+            </div>
+          </oj-bind-if>
 
-        <!-- Right Column: DYNAMIC Review Sidebar — shows selected finding detail -->
+          <!-- Populated Findings List -->
+          <oj-bind-if test="[[ !$variables.hasNoFindings ]]">
+            <oj-bind-for-each data="[[ $variables.findingsSdp ]]">
+              <template>
+                <div on-click="[[ $listeners.clickFinding ]]" :data-finding-id="[[ $current.data.finding_id ]]"
+                  :class="[[ 'w-full text-left bg-white p-5 rounded-2xl transition-all border shadow-sm cursor-pointer ' + (String($variables.selectedFindingId) === String($current.data.finding_id) ? 'ring-2 ring-slate-900 border-transparent shadow-md' : 'border-slate-200 hover:shadow-md hover:border-slate-300') ]]">
+                  <div class="flex justify-between gap-4">
+                    <div>
+                      <div class="flex items-center gap-3 mb-2">
+                        <b class="text-xl text-slate-900 font-black"><oj-bind-text
+                            value="[[ $current.data.item_number ]]"></oj-bind-text></b>
+                        <span
+                          class="inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 border border-slate-200 bg-white text-slate-700"><oj-bind-text
+                            value="[[ $current.data.rule_name ]]"></oj-bind-text></span>
+                      </div>
+                      <div
+                        class="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200">
+                        <oj-bind-text
+                          value="[[ $current.data.rule_code + ' · Finding #' + $current.data.finding_id ]]"></oj-bind-text>
+                      </div>
+                    </div>
+                    <div class="flex flex-col gap-2 items-end">
+                      <span
+                        :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800 border-rose-200' : ($current.data.severity === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200' : ($current.data.severity === 'WARNING' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-800 border-slate-200'))) ]]">
+                        <oj-bind-text value="[[ $current.data.severity ]]"></oj-bind-text>
+                      </span>
+                      <span
+                        :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.issue_status === 'OPEN' ? 'bg-amber-100 text-amber-800 border-amber-200' : ($current.data.issue_status === 'REVIEWED' ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-slate-200 text-slate-700 border-slate-300')) ]]">
+                        <oj-bind-text value="[[ $current.data.issue_status ]]"></oj-bind-text>
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    class="text-sm text-slate-800 font-medium mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner flex items-center gap-3">
+                    <span
+                      class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text
+                        value="[[ $current.data.actual_value || 'NULL' ]]"></oj-bind-text></span>
+                    <span class="text-slate-400 font-black">→</span>
+                    <span class="text-slate-500 text-xs">expected</span>
+                    <span
+                      class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text
+                        value="[[ $current.data.expected_value || '—' ]]"></oj-bind-text></span>
+                  </div>
+                </div>
+              </template>
+            </oj-bind-for-each>
+          </oj-bind-if>
+        </div>
+        
+        <!-- Right Column: DYNAMIC Review Sidebar -->
         <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 h-fit sticky top-24">
 
-          <!-- Default state: no finding selected -->
           <oj-bind-if test="[[ !$variables.selectedFindingId ]]">
             <div class="text-center py-12">
               <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,7 +367,6 @@
             </div>
           </oj-bind-if>
 
-          <!-- DYNAMIC selected finding detail, looping SDP to find the selected item -->
           <oj-bind-if test="[[ $variables.selectedFindingId ]]">
             <oj-bind-for-each data="[[ $variables.findingsSdp ]]">
               <template>
@@ -320,7 +391,6 @@
                     </span>
                   </div>
 
-                  <!-- Finding Location & Evidence -->
                   <div class="border-t border-slate-100 mt-5 pt-5">
                     <h4 class="font-black text-lg text-slate-900 mb-3 tracking-tight">Finding Location & Details</h4>
                     <div
@@ -361,7 +431,6 @@
               </template>
             </oj-bind-for-each>
 
-            <!-- AI Advisory Block — live from requestBomAdvisoryChain -->
             <div class="border-t border-slate-100 mt-6 pt-5">
               <h4 class="font-black text-lg text-slate-900 mb-3 tracking-tight">AI Explanation & Mitigation</h4>
               <div
@@ -394,7 +463,6 @@
               </button>
             </div>
 
-            <!-- Update Status Block (note: status update for BOM-level findings navigates to Finding Review) -->
             <div class="border-t border-slate-200 mt-6 pt-5 bg-slate-50 -mx-6 -mb-6 p-6 rounded-b-2xl shadow-inner">
               <b class="text-slate-900 font-black text-lg block mb-3">Quick Status Note</b>
               <p class="text-sm text-slate-600 font-medium">To update finding status with a comment, go to the Finding
@@ -413,10 +481,10 @@
     <div class="grid xl:grid-cols-3 gap-6">
       <div class="bg-white border border-slate-200 rounded-2xl p-6 xl:col-span-2 shadow-sm">
         <h3 class="font-black text-2xl text-slate-900 mb-2">Transparent Health Score</h3>
-        <p class="text-slate-600 mb-5 text-sm font-medium leading-relaxed border-b border-slate-100 pb-4">Base score
-          starts at 100. Deductions apply based on open issues.</p>
+        <p class="text-slate-600 mb-5 text-sm font-medium leading-relaxed border-b border-slate-100 pb-4">
+          Base score starts at 100. Deductions: 25 Critical, 10 High, 5 Warning for 'Open' or 'Reviewed' findings (floor 0). 'Ignored' and 'Resolved' statuses do not impact the active health score.
+        </p>
 
-        <!-- Rebuilt table as flex grid for Visual Builder compatibility -->
         <div class="flex flex-col w-full text-sm text-left">
           <div class="flex items-stretch bg-slate-50 border-b border-slate-200">
             <div class="p-4 w-1/4 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Violated Rule</div>
@@ -457,13 +525,9 @@
   <oj-bind-if test="[[ $variables.selectedTab === 'History' ]]">
     <div class="space-y-6">
 
-      <!-- Run History Section -->
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h3 class="font-black text-2xl text-slate-900 mb-2">Validation Run History & Error Comparison</h3>
-        <p class="text-sm text-slate-500 font-medium mb-5">Click a run card to isolate and inspect that specific
-          historical execution payload.</p>
         <div class="space-y-4">
-          <!-- DYNAMIC Run History Cards — live from BOMValidation/listBomRuns -->
           <oj-bind-for-each data="[[ $variables.runHistoryList ]]">
             <template>
               <div
@@ -491,11 +555,9 @@
         </div>
       </div>
 
-      <!-- Audit Trail Section -->
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h3 class="font-black text-2xl text-slate-900 mb-5">Complete Finding Status Audit Trail</h3>
         <div class="space-y-4 border-l-2 border-slate-200 pl-5 ml-3">
-          <!-- DYNAMIC Audit Trail -->
           <oj-bind-for-each data="[[ $variables.auditTrailList ]]">
             <template>
               <div class="relative bg-white border border-slate-200 rounded-xl p-5 shadow-sm">

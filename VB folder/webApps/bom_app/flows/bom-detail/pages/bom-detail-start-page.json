@@ -4,7 +4,7 @@
   "variables": {
     "bomId": {
       "type": "string",
-      "input": "fromUrl",
+      "input": "fromCaller",
       "defaultValue": ""
     },
     "selectedTab": {
@@ -27,13 +27,33 @@
         "healthScore": 0
       }
     },
+    "filterStatus": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "filterSeverity": {
+      "type": "string",
+      "defaultValue": ""
+    },
     "findingsSdp": {
       "type": "vb/ServiceDataProvider",
       "defaultValue": {
         "endpoint": "BOMValidation/listFindings",
         "keyAttributes": "finding_id",
-        "itemsPath": "items"
+        "itemsPath": "items",
+        "uriParameters": {
+          "bom_id": "{{ $variables.bomId }}",
+          "issue_status": "{{ $variables.filterStatus }}",
+          "severity": "{{ $variables.filterSeverity }}"
+        }
+      },
+      "events": {
+        "onResponse": "HandleFindingsResponseChain"
       }
+    },
+    "hasNoFindings": {
+      "type": "boolean",
+      "defaultValue": false
     },
     "selectedFindingId": {
       "type": "string"
@@ -43,6 +63,14 @@
       "defaultValue": []
     },
     "scoreDeductionsList": {
+      "type": "any",
+      "defaultValue": []
+    },
+    "componentsList": {
+      "type": "any",
+      "defaultValue": []
+    },
+    "auditTrailList": {
       "type": "any",
       "defaultValue": []
     },
@@ -63,6 +91,10 @@
       "defaultValue": ""
     },
     "isRefreshing": {
+      "type": "boolean",
+      "defaultValue": false
+    },
+    "isValidating": {
       "type": "boolean",
       "defaultValue": false
     }
@@ -130,6 +162,56 @@
             }
           },
           "outcomes": {
+            "success": "parseComponents"
+          }
+        },
+        "parseComponents": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseComponentsResponse",
+            "params": [
+              "{{ $chain.results.callGetBomDetail.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignComponents"
+          }
+        },
+        "assignComponents": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.componentsList": {
+              "source": "{{ $chain.results.parseComponents }}",
+              "auto": "always"
+            }
+          },
+          "outcomes": {
+            "success": "parseScoreDeductions"
+          }
+        },
+        "parseScoreDeductions": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseScoreDeductions",
+            "params": [
+              "{{ $chain.results.callGetBomDetail.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignScoreDeductions"
+          }
+        },
+        "assignScoreDeductions": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.scoreDeductionsList": {
+              "source": "{{ $chain.results.parseScoreDeductions }}",
+              "auto": "always"
+            }
+          },
+          "outcomes": {
             "success": "loadBomRuns"
           }
         },
@@ -166,6 +248,9 @@
               "source": "{{ $chain.results.assignRunHistory }}",
               "auto": "always"
             }
+          },
+          "outcomes": {
+            "success": "parseAuditTrail"
           }
         },
         "fireLoadError": {
@@ -175,6 +260,73 @@
             "summary": "Failed to load BOM detail. Please check your connection.",
             "type": "error",
             "displayMode": "persist"
+          }
+        },
+        "parseAuditTrail": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseAuditTrail",
+            "params": [
+              "{{ $chain.results.callGetBomDetail.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignAuditTrailVar"
+          }
+        },
+        "assignAuditTrailVar": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.auditTrailList": {
+              "source": "{{ $chain.results.parseAuditTrail }}",
+              "auto": "always"
+            }
+          },
+          "outcomes": {
+            "success": "callGetAdvisoriesList"
+          }
+        },
+        "callGetAdvisoriesList": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/getBomsBomIdAdvisories",
+            "uriParams": {
+              "bom_id": "{{ $page.variables.bomId }}"
+            }
+          },
+          "outcomes": {
+            "success": "parseAdvisoriesList"
+          }
+        },
+        "parseAdvisoriesList": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseLatestBomAdvisory",
+            "params": [
+              "{{ $chain.results.callGetAdvisoriesList.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignLatestAdvisory"
+          }
+        },
+        "assignLatestAdvisory": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.advisoryStatus": {
+              "source": "{{ $chain.results.parseAdvisoriesList.status }}",
+              "auto": "always"
+            },
+            "$page.variables.advisoryText": {
+              "source": "{{ $chain.results.parseAdvisoriesList.context }}",
+              "auto": "always"
+            },
+            "$page.variables.advisoryMitigation": {
+              "source": "{{ $chain.results.parseAdvisoriesList.mitigation }}",
+              "auto": "always"
+            }
           }
         }
       }
@@ -242,7 +394,7 @@
       }
     },
     "requestBomAdvisoryChain": {
-      "description": "POST BOMValidation/createBomAdvisory then poll getAdvisory for result",
+      "description": "Call OIC directly, wait for response, and display it",
       "root": "setAdvisoryLoading",
       "actions": {
         "setAdvisoryLoading": {
@@ -252,90 +404,56 @@
               "source": "GENERATING"
             },
             "$page.variables.advisoryText": {
-              "source": "Generating AI advisory…"
+              "source": "Generating AI advisory... This may take a moment."
+            },
+            "$page.variables.advisoryMitigation": {
+              "source": ""
             }
           },
           "outcomes": {
-            "success": "callCreateAdvisory"
+            "success": "callOICIntegration"
           }
         },
-        "callCreateAdvisory": {
+        "callOICIntegration": {
           "module": "vb/action/builtin/restAction",
           "parameters": {
-            "endpoint": "BOMValidation/createBomAdvisory",
-            "uriParams": {
-              "bom_id": "{{ $page.variables.bomId }}"
+            "endpoint": "OICAdvisoryService/postGenerateAdvisory",
+            "body": {
+              "bom_id": "{{ String($page.variables.bomId) }}",
+              "requested_by": "VBCS_USER"
             }
           },
           "outcomes": {
-            "success": "assignAdvisoryRequestId",
+            "success": "parseOICResult",
             "failure": "advisoryError"
           }
         },
-        "assignAdvisoryRequestId": {
+        "parseOICResult": {
           "module": "vb/action/builtin/callModuleFunctionAction",
           "parameters": {
             "module": "[[ $functions ]]",
-            "functionName": "extractAdvisoryRequestId",
+            "functionName": "parseOICResponse",
             "params": [
-              "{{ $chain.results.callCreateAdvisory.body }}"
+              "{{ $chain.results.callOICIntegration.body }}"
             ]
           },
           "outcomes": {
-            "success": "saveRequestId"
+            "success": "assignOICResult"
           }
         },
-        "saveRequestId": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.advisoryRequestId": {
-              "source": "{{ $chain.results.assignAdvisoryRequestId }}",
-              "auto": "always"
-            }
-          },
-          "outcomes": {
-            "success": "pollAdvisory"
-          }
-        },
-        "pollAdvisory": {
-          "module": "vb/action/builtin/restAction",
-          "parameters": {
-            "endpoint": "BOMValidation/getAdvisory",
-            "uriParams": {
-              "requestId": "{{ $page.variables.advisoryRequestId }}"
-            }
-          },
-          "outcomes": {
-            "success": "parseAdvisory",
-            "failure": "advisoryError"
-          }
-        },
-        "parseAdvisory": {
-          "module": "vb/action/builtin/callModuleFunctionAction",
-          "parameters": {
-            "module": "[[ $functions ]]",
-            "functionName": "parseAdvisoryResponse",
-            "params": [
-              "{{ $chain.results.pollAdvisory.body }}"
-            ]
-          },
-          "outcomes": {
-            "success": "assignAdvisory"
-          }
-        },
-        "assignAdvisory": {
+        "assignOICResult": {
           "module": "vb/action/builtin/assignVariablesAction",
           "parameters": {
             "$page.variables.advisoryStatus": {
-              "source": "{{ $chain.results.parseAdvisory.status }}",
+              "source": "{{ $chain.results.parseOICResult.status }}",
               "auto": "always"
             },
             "$page.variables.advisoryText": {
-              "source": "{{ $chain.results.parseAdvisory.context }}",
+              "source": "{{ $chain.results.parseOICResult.context }}",
               "auto": "always"
             },
             "$page.variables.advisoryMitigation": {
-              "source": "{{ $chain.results.parseAdvisory.mitigation }}",
+              "source": "{{ $chain.results.parseOICResult.mitigation }}",
               "auto": "always"
             }
           }
@@ -347,7 +465,7 @@
               "source": "ERROR"
             },
             "$page.variables.advisoryText": {
-              "source": "Advisory generation failed. Please try again."
+              "source": "AI Advisory generation failed or timed out. Please check OIC integration logs."
             }
           }
         }
@@ -390,9 +508,229 @@
           }
         }
       }
+    },
+    "FilterStatusChangeChain": {
+      "variables": {
+        "value": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "assignStatus",
+      "actions": {
+        "assignStatus": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.filterStatus": {
+              "source": "{{ $chain.variables.value }}"
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          }
+        }
+      }
+    },
+    "FilterSeverityChangeChain": {
+      "variables": {
+        "value": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "assignSeverity",
+      "actions": {
+        "assignSeverity": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.filterSeverity": {
+              "source": "{{ $chain.variables.value }}"
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          }
+        }
+      }
+    },
+    "ClearFiltersChain": {
+      "root": "resetFilters",
+      "actions": {
+        "resetFilters": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.filterStatus": {
+              "source": ""
+            },
+            "$page.variables.filterSeverity": {
+              "source": ""
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          }
+        }
+      }
+    },
+    "HandleFindingsResponseChain": {
+      "description": "Updates hasNoFindings flag based on API response item count",
+      "root": "checkEmpty",
+      "actions": {
+        "checkEmpty": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "checkIfEmpty",
+            "params": [
+              "{{ $chain.variables.response }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignHasNoFindings"
+          }
+        },
+        "assignHasNoFindings": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.hasNoFindings": {
+              "source": "{{ $chain.results.checkEmpty }}"
+            }
+          }
+        }
+      },
+      "variables": {
+        "response": {
+          "type": "any",
+          "input": "fromCaller"
+        }
+      }
+    },
+    "runValidationChain": {
+      "description": "POST to validation-runs and refresh all BOM data",
+      "root": "setValidatingTrue",
+      "actions": {
+        "setValidatingTrue": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isValidating": {
+              "source": true
+            }
+          },
+          "outcomes": {
+            "success": "callValidationAPI"
+          }
+        },
+        "callValidationAPI": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/createValidationRun",
+            "body": {
+              "bom_id": "{{ Number($page.variables.bomId) }}",
+              "requested_by": "VBCS User"
+            }
+          },
+          "outcomes": {
+            "success": "notifySuccess",
+            "failure": "notifyError"
+          }
+        },
+        "notifySuccess": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Validation run completed successfully.",
+            "type": "confirmation",
+            "displayMode": "transient"
+          },
+          "outcomes": {
+            "success": "refreshBomData"
+          }
+        },
+        "notifyError": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Validation run failed.",
+            "message": "{{ $chain.results.callValidationAPI.error ? ('Error ' + $chain.results.callValidationAPI.error.status) : 'Missing/Invalid Endpoint ID in Service Connection' }}",
+            "type": "error",
+            "displayMode": "persist"
+          },
+          "outcomes": {
+            "success": "setValidatingFalse"
+          }
+        },
+        "refreshBomData": {
+          "module": "vb/action/builtin/callChainAction",
+          "parameters": {
+            "id": "loadBomDetailChain",
+            "params": {
+              "bomId": "{{ $page.variables.bomId }}"
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          },
+          "outcomes": {
+            "success": "setValidatingFalse"
+          }
+        },
+        "setValidatingFalse": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.isValidating": {
+              "source": false
+            }
+          }
+        }
+      }
     }
   },
   "eventListeners": {
+    "buttonClick": {
+      "chains": [
+        {
+          "chain": "buttonClickChain",
+          "parameters": {
+            "event": "{{$event}}"
+          }
+        }
+      ]
+    },
+    "clickRunValidation": {
+      "chains": [
+        {
+          "chainId": "runValidationChain"
+        }
+      ]
+    },
     "vbEnter": {
       "chains": [
         {
@@ -419,13 +757,48 @@
           }
         }
       ]
+    },
+    "changeFilterStatus": {
+      "chains": [
+        {
+          "chainId": "FilterStatusChangeChain",
+          "parameters": {
+            "value": "{{ $event.target.value }}"
+          }
+        }
+      ]
+    },
+    "changeFilterSeverity": {
+      "chains": [
+        {
+          "chainId": "FilterSeverityChangeChain",
+          "parameters": {
+            "value": "{{ $event.target.value }}"
+          }
+        }
+      ]
+    },
+    "clickClearFilters": {
+      "chains": [
+        {
+          "chainId": "ClearFiltersChain"
+        }
+      ]
     }
+
   },
+  
   "imports": {
     "components": {
       "oj-bind-if": { "path": "ojs/ojbindif" },
       "oj-bind-for-each": { "path": "ojs/ojbindforeach" },
-      "oj-bind-text": { "path": "ojs/ojbindtext" }
+      "oj-bind-text": { "path": "ojs/ojbindtext" },
+      "oj-row-expander": {
+        "path": "ojs/ojrowexpander"
+      },
+      "oj-table": {
+        "path": "ojs/ojtable"
+      }
     }
   }
 }

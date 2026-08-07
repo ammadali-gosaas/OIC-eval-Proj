@@ -41,17 +41,45 @@
       "type": "string",
       "defaultValue": ""
     },
+    "hasNoFindings": {
+      "type": "boolean",
+      "defaultValue": false
+    },
     "findingsSdp": {
       "type": "vb/ServiceDataProvider",
       "defaultValue": {
         "endpoint": "BOMValidation/listFindings",
         "keyAttributes": "finding_id",
-        "itemsPath": "items"
+        "itemsPath": "items",
+        "uriParameters": {
+          "issue_status": "{{ $variables.filterStatus }}",
+          "severity": "{{ $variables.filterSeverity }}"
+        }
+      },
+      "events": {
+        "onResponse": "HandleFindingsResponseChain"
+      }
+    },
+    "statusOptionsADP": {
+      "type": "vb/ArrayDataProvider",
+      "defaultValue": {
+        "data": [
+          { "value": "OPEN", "label": "Open" },
+          { "value": "REVIEWED", "label": "Reviewed" },
+          { "value": "IGNORED", "label": "Ignored" }
+        ],
+        "itemType": "statusOption",
+        "keyAttributes": "value"
       }
     }
   },
   "metadata": {},
-  "types": {},
+  "types": {
+    "statusOption": {
+      "value": "string",
+      "label": "string"
+    }
+  },
   "chains": {
     "LoadStylesChain": {
       "root": "callFunctionLoadTailwind",
@@ -65,9 +93,131 @@
         }
       }
     },
+    "HandleFindingsResponseChain": {
+      "description": "Updates hasNoFindings flag based on API response item count",
+      "root": "checkEmpty",
+      "actions": {
+        "checkEmpty": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "checkIfEmpty",
+            "params": [
+              "{{ $chain.variables.response }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignHasNoFindings"
+          }
+        },
+        "assignHasNoFindings": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.hasNoFindings": {
+              "source": "{{ $chain.results.checkEmpty }}"
+            }
+          }
+        }
+      },
+      "variables": {
+        "response": {
+          "type": "any",
+          "input": "fromCaller"
+        }
+      }
+    },
+    "FilterStatusChangeChain": {
+      "variables": {
+        "value": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "assignStatus",
+      "actions": {
+        "assignStatus": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.filterStatus": {
+              "source": "{{ $chain.variables.value }}"
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          }
+        }
+      }
+    },
+    "FilterSeverityChangeChain": {
+      "variables": {
+        "value": {
+          "type": "string",
+          "input": "fromCaller"
+        }
+      },
+      "root": "assignSeverity",
+      "actions": {
+        "assignSeverity": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.filterSeverity": {
+              "source": "{{ $chain.variables.value }}"
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          }
+        }
+      }
+    },
+    "ClearFiltersChain": {
+      "description": "Resets filter variables and refreshes findings list",
+      "root": "resetFilters",
+      "actions": {
+        "resetFilters": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.filterStatus": {
+              "source": ""
+            },
+            "$page.variables.filterSeverity": {
+              "source": ""
+            }
+          },
+          "outcomes": {
+            "success": "refreshSdp"
+          }
+        },
+        "refreshSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
+          }
+        }
+      }
+    },
     "SelectFindingChain": {
       "variables": {
         "findingId": {
+          "type": "string",
+          "input": "fromCaller"
+        },
+        "currentStatus": {
           "type": "string",
           "input": "fromCaller"
         }
@@ -79,6 +229,12 @@
           "parameters": {
             "$page.variables.selectedFindingId": {
               "source": "{{ $chain.variables.findingId }}"
+            },
+            "$page.variables.newStatus": {
+              "source": "{{ ($chain.variables.currentStatus || 'OPEN').toString().trim().toUpperCase() }}"
+            },
+            "$page.variables.statusComment": {
+              "source": ""
             },
             "$page.variables.advisoryStatus": {
               "source": "NOT_REQUESTED"
@@ -132,6 +288,16 @@
             "summary": "Finding status updated successfully.",
             "type": "confirmation",
             "displayMode": "transient"
+          },
+          "outcomes": {
+            "success": "refreshFindingsSdp"
+          }
+        },
+        "refreshFindingsSdp": {
+          "module": "vb/action/builtin/fireDataProviderEventAction",
+          "parameters": {
+            "target": "[[ $page.variables.findingsSdp ]]",
+            "refresh": null
           },
           "outcomes": {
             "success": "clearSaving"
@@ -223,7 +389,7 @@
           "parameters": {
             "endpoint": "BOMValidation/getAdvisory",
             "uriParams": {
-              "requestId": "{{ $page.variables.advisoryRequestId }}"
+              "finding_id": "{{ $page.variables.selectedFindingId }}"
             }
           },
           "outcomes": {
@@ -283,12 +449,40 @@
         }
       ]
     },
+    "changeFilterStatus": {
+      "chains": [
+        {
+          "chainId": "FilterStatusChangeChain",
+          "parameters": {
+            "value": "{{ $event.target.value }}"
+          }
+        }
+      ]
+    },
+    "changeFilterSeverity": {
+      "chains": [
+        {
+          "chainId": "FilterSeverityChangeChain",
+          "parameters": {
+            "value": "{{ $event.target.value }}"
+          }
+        }
+      ]
+    },
+    "clickClearFilters": {
+      "chains": [
+        {
+          "chainId": "ClearFiltersChain"
+        }
+      ]
+    },
     "clickFinding": {
       "chains": [
         {
           "chainId": "SelectFindingChain",
           "parameters": {
-            "findingId": "{{ $event.currentTarget.dataset.findingId }}"
+            "findingId": "{{ $event.currentTarget.dataset.findingId }}",
+            "currentStatus": "{{ $event.currentTarget.dataset.currentStatus }}"
           }
         }
       ]
@@ -318,6 +512,12 @@
       },
       "oj-bind-if": {
         "path": "ojs/ojbindif"
+      },
+      "oj-select-single": {
+        "path": "ojs/ojselectsingle"
+      },
+      "oj-text-area": {
+        "path": "ojs/ojinputtext"
       }
     }
   }

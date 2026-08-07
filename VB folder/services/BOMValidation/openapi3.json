@@ -348,6 +348,41 @@
                         "description": "BOM not found"
                     }
                 }
+            },
+            "parameters": [
+                {
+                    "name": "bom_id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "get": {
+                "operationId": "getBomsBomIdAdvisories",
+                "parameters": [],
+                "responses": {
+                    "default": {
+                        "description": "Response for default",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetBomsBom_idAdvisories"
+                                },
+                                "examples": {
+                                    "vb": {
+                                        "summary": "Example stored by VB User",
+                                        "externalValue": "./examples/getBomsBomIdAdvisories/response_default_application_json_vb.json"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-vb": {
+                    "actionHint": "getMany"
+                }
             }
         },
         "/validation-runs": {
@@ -1483,6 +1518,15 @@
                     },
                     "enabled_flag": {
                         "type": "string"
+                    }
+                }
+            },
+            "GetBomsBom_idAdvisories": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {}
                     }
                 }
             }

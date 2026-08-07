@@ -7,14 +7,14 @@ smartTags:
 - "app:rest,style:app driven orchestration"
 - "app:rest, app:soap,style:app driven orchestration"
 revision: 0
-projectRevision: 316
+projectRevision: 318
 status: ACTIVE
 createdBy: zahra.kazmi@gosaas.ai
 createdDate: 2026-08-04T12:24:09.879+0000
 updatedBy: zahra.kazmi@gosaas.ai
 updatedDate: 2026-08-04T12:24:09.879+0000
 latestBy: ammad.ali@gosaas.ai
-latestDate: 2026-08-06T07:55:21.072+0000
+latestDate: 2026-08-07T06:38:19.854+0000
 CAV: 1
 simplifiedMode: false
 assets:
@@ -33,7 +33,7 @@ assets:
     name: PLM Data Ingestion
     revision: 29
     updatedBy: ammad.ali@gosaas.ai
-    updatedDate: 2026-08-06T07:45:21.968+0000
+    updatedDate: 2026-08-07T06:38:15.341+0000
   connections:
   - id: FUSION_BIP_SOAP_CONN
     name: Fusion_BIP_SOAP_Conn
@@ -62,9 +62,9 @@ assets:
     updatedDate: 2026-08-05T14:03:12.967+0000
   - id: VB_PLM_TRIGGER_CONN
     name: VB_PLM_Trigger_Conn
-    revision: 1
+    revision: 3
     updatedBy: ammad.ali@gosaas.ai
-    updatedDate: 2026-08-05T12:59:16.774+0000
+    updatedDate: 2026-08-07T06:38:19.854+0000
   labels:
   - id: FOREXPORTING
     name: ForExporting

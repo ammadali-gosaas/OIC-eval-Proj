@@ -1,58 +1,111 @@
 <div class="p-6 md:p-8 space-y-6 bg-[#f8fafc] text-base text-slate-800 min-h-screen font-sans w-full">
-  
   <section>
     <h2 class="text-3xl font-black mb-1 text-slate-900">Finding Review Workflow</h2>
     <p class="text-slate-600 font-medium mb-6 text-base">Human-in-the-loop status transition desk. Deterministic evidence is separated clearly from Advisory AI layers.</p>
     
     <div class="space-y-6">
-      <!-- Filter Bar -->
-      <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex gap-3 flex-wrap">
-        <select class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none"><option>All Statuses</option><option>OPEN</option><option>REVIEWED</option><option>IGNORED</option></select>
-        <select class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none"><option>All Severities</option><option>CRITICAL</option><option>HIGH</option><option>WARNING</option><option>INFO</option></select>
-        <button class="px-4 py-2 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-700 hover:bg-slate-50 transition-all shadow-sm">Clear Filters</button>
-      </div>
+   
+<!-- Filter Bar -->
+<div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex gap-3 flex-wrap items-center">
+  
+  <!-- Status Filter Dropdown -->
+  <select :value="[[ $variables.filterStatus ]]" on-change="[[ $listeners.changeFilterStatus ]]" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none">
+    <option value="">All Statuses</option>
+    <option value="OPEN">OPEN</option>
+    <option value="REVIEWED">REVIEWED</option>
+    <option value="IGNORED">IGNORED</option>
+  </select>
+
+  <!-- Severity Filter Dropdown -->
+  <select :value="[[ $variables.filterSeverity ]]" on-change="[[ $listeners.changeFilterSeverity ]]" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-800 shadow-sm focus:outline-none">
+    <option value="">All Severities</option>
+    <option value="CRITICAL">CRITICAL</option>
+    <option value="HIGH">HIGH</option>
+    <option value="WARNING">WARNING</option>
+    <option value="INFO">INFO</option>
+  </select>
+
+  <!-- Clear Filters Button -->
+  <button on-click="[[ $listeners.clickClearFilters ]]" class="px-4 py-2 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-700 hover:bg-slate-50 transition-all shadow-sm">
+    Clear Filters
+  </button>
+
+</div>
 
       <div class="grid xl:grid-cols-3 gap-6 items-start">
         
         <!-- Left Column: DYNAMIC Finding Cards List -->
-        <div class="xl:col-span-2 space-y-4">
-          <oj-bind-for-each data="[[ $variables.findingsSdp ]]">
-            <template>
-              
-              <!-- Card with Dynamic Click Handler and Dynamic Highlight Ring -->
-              <div on-click="[[ $listeners.clickFinding ]]" :data-finding-id="[[ $current.data.finding_id ]]" :class="[[ 'w-full text-left bg-white p-5 rounded-2xl transition-all border shadow-sm cursor-pointer ' + (String($variables.selectedFindingId) === String($current.data.finding_id) ? 'ring-2 ring-slate-900 border-transparent shadow-md' : 'border-slate-200 hover:shadow-md hover:border-slate-300') ]]">
-                <div class="flex justify-between gap-4">
-                  <div>
-                    <div class="flex items-center gap-3 mb-2">
-                      <b class="text-xl text-slate-900 font-black"><oj-bind-text value="[[ $current.data.item_number ]]"></oj-bind-text></b>
-                      <span class="inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 border border-slate-200 bg-white text-slate-700"><oj-bind-text value="[[ $current.data.rule_name ]]"></oj-bind-text></span>
-                    </div>
-                    <div class="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200"><oj-bind-text value="[[ $current.data.rule_code + ' · Finding #' + $current.data.finding_id ]]"></oj-bind-text></div>
-                  </div>
-                  <div class="flex flex-col gap-2 items-end">
-                    <span :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800 border-rose-200' : ($current.data.severity === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200' : ($current.data.severity === 'WARNING' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-800 border-slate-200'))) ]]">
-                      <oj-bind-text value="[[ $current.data.severity ]]"></oj-bind-text>
-                    </span>
-                    <span :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.issue_status === 'OPEN' ? 'bg-amber-100 text-amber-800 border-amber-200' : ($current.data.issue_status === 'REVIEWED' ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-slate-200 text-slate-700 border-slate-300')) ]]">
-                      <oj-bind-text value="[[ $current.data.issue_status ]]"></oj-bind-text>
-                    </span>
-                  </div>
-                </div>
-                <div class="text-sm text-slate-800 font-medium mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner flex items-center gap-3">
-                  <span class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text value="[[ $current.data.actual_value || 'NULL' ]]"></oj-bind-text></span> 
-                  <span class="text-slate-400 font-black">→</span> 
-                  <span class="text-slate-500 text-xs">expected</span> 
-                  <span class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text value="[[ $current.data.expected_value || '—' ]]"></oj-bind-text></span>
-                </div>
-              </div>
-            </template>
-          </oj-bind-for-each>
-        </div>
+        <!-- Left Column: DYNAMIC Finding Cards List -->
+<div class="xl:col-span-2 space-y-4">
+  
+  <!-- Empty State Feedback Message -->
+  <oj-bind-if test="[[ $variables.hasNoFindings ]]">
+    <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-sm">
+      <div class="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-4 text-slate-400">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+        </svg>
+      </div>
+      <h3 class="text-xl font-black text-slate-900 mb-1">No Findings Found</h3>
+      <p class="text-sm text-slate-500 font-medium max-w-md mx-auto mb-6">
+        No validation findings match your current filter criteria. Try selecting a different status or severity filter.
+      </p>
+      <button on-click="[[ $listeners.clickClearFilters ]]" class="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-black text-sm hover:bg-slate-800 transition-all shadow-md">
+        Clear All Filters
+      </button>
+    </div>
+  </oj-bind-if>
+
+  <!-- Findings List -->
+  <oj-bind-if test="[[ !$variables.hasNoFindings ]]">
+    <oj-bind-for-each data="[[ $variables.findingsSdp ]]">
+      <template>
         
-        <!-- Right Column: Review Sidebar -->
-        <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 h-fit sticky top-24">
+        <!-- Card with Dynamic Click Handler and Dynamic Highlight Ring -->
+        <div on-click="[[ $listeners.clickFinding ]]" :data-finding-id="[[ $current.data.finding_id ]]" :data-current-status="[[ $current.data.issue_status ]]" :class="[[ 'w-full text-left bg-white p-5 rounded-2xl transition-all border shadow-sm cursor-pointer ' + (String($variables.selectedFindingId) === String($current.data.finding_id) ? 'ring-2 ring-slate-900 border-transparent shadow-md' : 'border-slate-200 hover:shadow-md hover:border-slate-300') ]]">
+          <div class="flex justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-3 mb-2">
+                <b class="text-xl text-slate-900 font-black"><oj-bind-text value="[[ $current.data.item_number ]]"></oj-bind-text></b>
+                <span class="inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 border border-slate-200 bg-white text-slate-700"><oj-bind-text value="[[ $current.data.rule_name ]]"></oj-bind-text></span>
+              </div>
+              <div class="text-[10px] font-bold text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200"><oj-bind-text value="[[ $current.data.rule_code + ' · Finding #' + $current.data.finding_id ]]"></oj-bind-text></div>
+            </div>
+            <div class="flex flex-col gap-2 items-end">
+              <span :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800 border-rose-200' : ($current.data.severity === 'HIGH' ? 'bg-orange-100 text-orange-800 border-orange-200' : ($current.data.severity === 'WARNING' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-800 border-slate-200'))) ]]">
+                <oj-bind-text value="[[ $current.data.severity ]]"></oj-bind-text>
+              </span>
+              <span :class="[[ 'inline-flex items-center rounded-full shadow-sm text-[10px] font-bold px-2.5 py-1 uppercase tracking-widest border ' + ($current.data.issue_status === 'OPEN' ? 'bg-amber-100 text-amber-800 border-amber-200' : ($current.data.issue_status === 'REVIEWED' ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-slate-200 text-slate-700 border-slate-300')) ]]">
+                <oj-bind-text value="[[ $current.data.issue_status ]]"></oj-bind-text>
+              </span>
+            </div>
+          </div>
+
+          <div class="text-sm text-slate-800 font-medium mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner flex items-center gap-3">
+            <span class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text value="[[ $current.data.actual_value || 'NULL' ]]"></oj-bind-text></span> 
+            <span class="text-slate-400 font-black">→</span> 
+            <span class="text-slate-500 text-xs">expected</span> 
+            <span class="bg-white px-2 py-1 rounded border border-slate-200 shadow-sm font-bold break-all"><oj-bind-text value="[[ $current.data.expected_value || '—' ]]"></oj-bind-text></span>
+          </div>
+
+          <!-- CARD PREVIEW: Latest Review Note -->
+          <oj-bind-if test="[[ $current.data.comment ]]">
+            <div class="mt-3 text-xs bg-slate-100/80 px-3 py-2 rounded-lg border border-slate-200/70 flex items-center gap-2">
+              <span class="font-bold text-slate-500 uppercase text-[9px] tracking-wider shrink-0">Note:</span>
+              <span class="italic text-slate-700 font-medium truncate"><oj-bind-text value="[[ $current.data.comment ]]"></oj-bind-text></span>
+            </div>
+          </oj-bind-if>
+        </div>
+      </template>
+    </oj-bind-for-each>
+  </oj-bind-if>
+
+</div>
+
+        <!-- Right Column: Review Sidebar (FIXED SCROLLABILITY) -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
           
-          <!-- Default State (Shows when no card is clicked yet) -->
+          <!-- Default State -->
           <oj-bind-if test="[[ !$variables.selectedFindingId ]]">
             <div class="text-center py-12">
               <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -79,6 +132,16 @@
                       <oj-bind-text value="[[ $current.data.issue_status ]]"></oj-bind-text>
                     </span>
                   </div>
+                  
+                  <!-- SIDEBAR COMMENT: Latest Review Note -->
+                  <oj-bind-if test="[[ $current.data.comment ]]">
+                    <div class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                      <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Latest Review Note</span>
+                      <p class="text-sm text-slate-800 font-medium italic">
+                        "<oj-bind-text value="[[ $current.data.comment ]]"></oj-bind-text>"
+                      </p>
+                    </div>
+                  </oj-bind-if>
 
                   <!-- Finding Location & Evidence -->
                   <div class="border-t border-slate-100 mt-5 pt-5">
@@ -99,11 +162,6 @@
                             <span class="font-bold text-slate-900 break-words text-sm"><oj-bind-text value="[[ $current.data.expected_value || '—' ]]"></oj-bind-text></span>
                         </div>
                      </div>
-
-                     <p class="text-xs mt-4 text-slate-600 font-medium bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm flex gap-2 items-start">
-                       <svg class="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                       <span><b class="text-slate-900 font-bold">Review Aid:</b> This validation finding requires human review and is meant as an advisory tool, not direct proof the relationship is technically wrong.</span>
-                     </p>
                   </div>
 
                   <!-- AI Explanation Block -->
@@ -114,8 +172,8 @@
                           <svg class="w-16 h-16 text-violet-900" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                         </div>
                         <div class="flex justify-between items-start mb-4 relative z-10">
-                        <span class="inline-flex items-center rounded-full bg-violet-600 text-white shadow-md px-3 py-1 text-[10px] uppercase tracking-widest font-black">Advisory AI</span>
-                            <span class="text-[10px] font-bold text-violet-900 bg-violet-200 px-2.5 py-1 rounded-full border border-violet-300">Status: <oj-bind-text value="[[ $variables.advisoryStatus ]]"></oj-bind-text></span>
+                          <span class="inline-flex items-center rounded-full bg-violet-600 text-white shadow-md px-3 py-1 text-[10px] uppercase tracking-widest font-black">Advisory AI</span>
+                          <span class="text-[10px] font-bold text-violet-900 bg-violet-200 px-2.5 py-1 rounded-full border border-violet-300">Status: <oj-bind-text value="[[ $variables.advisoryStatus ]]"></oj-bind-text></span>
                         </div>
                         <p class="mb-3 relative z-10"><b class="text-violet-900 block mb-1 font-black uppercase text-[10px] tracking-wider">Business Context</b> <oj-bind-text value="[[ $variables.advisoryText || '—' ]]"></oj-bind-text></p>
                         <p class="relative z-10"><b class="text-violet-900 block mb-1 font-black uppercase text-[10px] tracking-wider">Suggested Mitigation Action</b> <span class="bg-white px-2 py-1.5 rounded border border-violet-200 inline-block font-medium shadow-sm"><oj-bind-text value="[[ $variables.advisoryMitigation || '—' ]]"></oj-bind-text></span></p>
@@ -128,13 +186,20 @@
                   <!-- Update Status Block -->
                   <div class="border-t border-slate-200 mt-6 pt-5 bg-slate-50 -mx-6 -mb-6 p-6 rounded-b-2xl shadow-inner">
                     <b class="text-slate-900 font-black text-lg block mb-3">Update Finding Status</b>
-                    <select value="[[ $variables.newStatus ]]" on-value-changed="[[ function(e){ $variables.newStatus = e.detail.value; } ]]" class="w-full rounded-xl border border-slate-300 px-4 py-2.5 bg-white text-sm font-bold text-slate-800 shadow-sm cursor-pointer focus:ring-2 focus:ring-slate-900 focus:outline-none">
-                        <option value="OPEN">OPEN</option>
-                        <option value="REVIEWED">REVIEWED</option>
-                        <option value="IGNORED">IGNORED</option>
-                    </select>
-                    <textarea value="[[ $variables.statusComment ]]" on-value-changed="[[ function(e){ $variables.statusComment = e.detail.value; } ]]" class="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm font-medium" rows="2" placeholder="Required comment if changing status to 'Ignored'..."></textarea>
-                    <button on-click="[[ $listeners.clickSaveStatus ]]" :disabled="[[ $variables.isSavingStatus ]]" class="mt-3 w-full rounded-xl bg-slate-900 text-white px-4 py-3 font-black hover:bg-slate-800 transition-colors shadow-md text-base tracking-wide">
+                    
+                    <oj-select-single 
+                    value="{{ $variables.newStatus }}" 
+                    data="[[ $variables.statusOptionsADP ]]" 
+                    item-text="label" 
+                    class="w-full mt-2" 
+                    placeholder="-- Select New Status --"
+                    label-hint="New Status"
+                    label-edge="none">
+                  </oj-select-single>
+                  
+                    <oj-text-area value="{{ $variables.statusComment }}" class="w-full mt-3" rows="2" placeholder="Required comment if changing status to 'Ignored'..."></oj-text-area>
+                    
+                    <button on-click="[[ $listeners.clickSaveStatus ]]" :disabled="[[ $variables.isSavingStatus || $variables.newStatus === '' ]]" class="mt-3 w-full rounded-xl bg-slate-900 text-white px-4 py-3 font-black hover:bg-slate-800 transition-colors shadow-md text-base tracking-wide disabled:opacity-50 disabled:cursor-not-allowed">
                       <oj-bind-if test="[[ $variables.isSavingStatus ]]">Saving…</oj-bind-if>
                       <oj-bind-if test="[[ !$variables.isSavingStatus ]]">Save Status Change</oj-bind-if>
                     </button>

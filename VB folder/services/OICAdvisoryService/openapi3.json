@@ -1,0 +1,200 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "BOM_AI_ADVISORY_SERVICE",
+        "version": "01.00.0000",
+        "x-vb": {
+            "serviceType": "openapi"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://gosaas-oic-gosaas-ia.integration.us-ashburn-1.ocp.oraclecloud.com/ic/api/integration/v2/flows/rest/project/ZA_PLM/BOM_AI_ADVISORY_SERVICE/1.0",
+            "x-vb": {
+                "authentication": {
+                    "authenticated": {
+                        "type": "oauth2_user_assertion",
+                        "scope": "https://27AB99603F0E412C82017D2BD66711A2.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all"
+                    }
+                },
+                "forceProxy": "cors"
+            }
+        }
+    ],
+    "paths": {
+        "/generate-advisory": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/request-wrapper"
+                            }
+                        }
+                    },
+                    "required": false
+                },
+                "responses": {
+                    "500": {
+                        "description": "Faults",
+                        "content": {}
+                    },
+                    "default": {
+                        "description": "A sample description of the Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/response-wrapper"
+                                },
+                                "example": "{\"bom_id\":\"1\",\"ai_summary\":\"Text summary\",\"ai_suggested_action\":\"Text action\",\"status\":\"SUCCESS\"}"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "oauth2Authentication": []
+                    },
+                    {
+                        "basicAuthentication": []
+                    }
+                ],
+                "x-codegen-request-body-name": "request-wrapper",
+                "operationId": "postGenerateAdvisory"
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "request-wrapper": {
+                "required": [
+                    "bom_id",
+                    "requested_by"
+                ],
+                "type": "object",
+                "properties": {
+                    "bom_id": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "requested_by": {
+                        "type": "string",
+                        "example": null
+                    }
+                },
+                "example": "{\"bom_id\":\"1\",\"requested_by\":\"VBCS_USER\"}"
+            },
+            "response-wrapper": {
+                "required": [
+                    "ai_suggested_action",
+                    "ai_summary",
+                    "bom_id",
+                    "status"
+                ],
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "bom_id": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "ai_summary": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "ai_suggested_action": {
+                        "type": "string",
+                        "example": null
+                    }
+                },
+                "example": "{\"bom_id\":\"1\",\"ai_summary\":\"Text summary\",\"ai_suggested_action\":\"Text action\",\"status\":\"SUCCESS\"}"
+            },
+            "APIInvocationError": {
+                "required": [
+                    "detail",
+                    "errorCode",
+                    "errorDetails",
+                    "title",
+                    "type"
+                ],
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "detail": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "errorCode": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "errorDetails": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                            "required": [
+                                "errorCode",
+                                "errorPath",
+                                "instance",
+                                "title",
+                                "type"
+                            ],
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "instance": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "errorPath": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "errorCode": {
+                                    "type": "string",
+                                    "example": null
+                                }
+                            },
+                            "example": null
+                        }
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "oauth2Authentication": {
+                "type": "oauth2",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "https://idcs-8ee74fa3a3744beda80d235994a9c0ce.identity.oraclecloud.com/oauth2/v1/authorize",
+                        "tokenUrl": "https://idcs-8ee74fa3a3744beda80d235994a9c0ce.identity.oraclecloud.com/oauth2/v1/token",
+                        "scopes": {
+                            "https://gosaas-oic-gosaas-ia.integration.us-ashburn-1.ocp.oraclecloud.comurn:opc:resource:consumer::all": "all"
+                        }
+                    }
+                }
+            },
+            "basicAuthentication": {
+                "type": "http",
+                "scheme": "basic"
+            }
+        }
+    }
+}

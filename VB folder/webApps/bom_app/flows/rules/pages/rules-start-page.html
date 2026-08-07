@@ -42,12 +42,11 @@
                 <!-- Action Links (Edit | Delete) -->
                 <div class="flex items-center gap-2">
                   <button on-click="[[ $listeners.clickOpenEditRule ]]" 
-                          :data-rule-id="[[ $current.data.rule_id ]]"
                           :data-rule-code="[[ $current.data.rule_code ]]"
                           :data-rule-name="[[ $current.data.rule_name ]]"
                           :data-severity="[[ $current.data.severity ]]"
                           :data-description="[[ $current.data.description ]]"
-                          :data-threshold="[[ $current.data.threshold_or_configuration ]]"
+                          :data-config="[[ $current.data.rule_config ]]"
                           :data-enabled="[[ $current.data.enabled_flag || 'Y' ]]"
                           class="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-800 underline underline-offset-2">
                     Edit
@@ -71,20 +70,19 @@
             <!-- Configuration Box -->
             <div class="rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm text-slate-800 font-medium shadow-inner">
               <div class="flex justify-between items-start mb-1">
-                <b class="text-slate-900 font-black uppercase text-[10px] tracking-wider">Engine Threshold/Configuration:</b>
+                <b class="text-slate-900 font-black uppercase text-[10px] tracking-wider">Engine Configuration:</b>
                 <oj-bind-if test="[[ $current.data.enabled_flag === 'N' ]]">
                   <span class="text-[10px] font-bold text-rose-600 uppercase tracking-widest bg-rose-100 px-1.5 py-0.5 rounded">Disabled</span>
                 </oj-bind-if>
               </div>
-              <oj-bind-text value="[[ $current.data.threshold_or_configuration || '—' ]]"></oj-bind-text>
+              <oj-bind-text value="[[ $current.data.rule_config || '—' ]]"></oj-bind-text>
             </div>
           </div>
         </template>
       </oj-bind-for-each>
     </div>
   </section>
-
-  <!-- ADD RULE MODAL -->
+<!-- ADD RULE MODAL -->
   <oj-bind-if test="[[ $variables.isAddRuleModalOpen ]]">
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity">
       <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-lg">
@@ -94,11 +92,11 @@
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1">Rule Code</label>
-              <input type="text" value="[[ $variables.newRuleCode ]]" on-input="[[ function(e) { $variables.newRuleCode = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" placeholder="e.g. CUST-01">
+              <input type="text" :value="[[ $variables.newRuleCode ]]" on-input="[[ function(e) { $variables.newRuleCode = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" placeholder="e.g. CUST-01">
             </div>
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1">Severity</label>
-              <select value="[[ $variables.newRuleSeverity ]]" on-change="[[ function(e) { $variables.newRuleSeverity = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+              <select :value="[[ $variables.newRuleSeverity ]]" on-change="[[ function(e) { $variables.newRuleSeverity = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
                   <option value="CRITICAL">Critical</option>
                   <option value="HIGH">High</option>
                   <option value="WARNING">Warning</option>
@@ -108,11 +106,11 @@
           </div>
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-1">Rule Name</label>
-            <input type="text" value="[[ $variables.newRuleName ]]" on-input="[[ function(e) { $variables.newRuleName = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" placeholder="e.g. Missing Material Code">
+            <input type="text" :value="[[ $variables.newRuleName ]]" on-input="[[ function(e) { $variables.newRuleName = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" placeholder="e.g. Missing Material Code">
           </div>
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
-            <textarea value="[[ $variables.newRuleDescription ]]" on-input="[[ function(e) { $variables.newRuleDescription = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" rows="3" placeholder="Rule explanation..."></textarea>
+            <textarea :value="[[ $variables.newRuleDescription ]]" on-input="[[ function(e) { $variables.newRuleDescription = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" rows="3" placeholder="Rule explanation..."></textarea>
           </div>
         </div>
         <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
@@ -123,17 +121,21 @@
     </div>
   </oj-bind-if>
 
-  <!-- EDIT RULE MODAL -->
+  <!-- EDIT RULE MODAL (DYNAMIC CONFIG) -->
   <oj-bind-if test="[[ $variables.isEditRuleModalOpen ]]">
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 transition-opacity">
-      <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-lg">
-        <h3 class="text-2xl font-black mb-2 text-slate-900">Edit Rule</h3>
-        <p class="text-slate-500 mb-6 text-sm font-mono"><oj-bind-text value="[[ $variables.editRuleCode ]]"></oj-bind-text></p>
+      <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        <h3 class="text-2xl font-black mb-1 text-slate-900">Edit Rule</h3>
+        <p class="text-slate-500 mb-6 text-sm font-bold bg-slate-100 inline-block px-2 py-1 rounded border border-slate-200">
+          <oj-bind-text value="[[ $variables.editRuleCode ]]"></oj-bind-text>
+        </p>
+        
         <div class="space-y-4">
+          <!-- Standard Fields -->
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1">Severity</label>
-              <select value="[[ $variables.editRuleSeverity ]]" on-change="[[ function(e) { $variables.editRuleSeverity = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+              <select :value="[[ $variables.editRuleSeverity ]]" on-change="[[ function(e) { $variables.editRuleSeverity = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
                   <option value="CRITICAL">Critical</option>
                   <option value="HIGH">High</option>
                   <option value="WARNING">Warning</option>
@@ -142,7 +144,7 @@
             </div>
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1">Status</label>
-              <select value="[[ $variables.editRuleEnabled ]]" on-change="[[ function(e) { $variables.editRuleEnabled = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+              <select :value="[[ $variables.editRuleEnabled ]]" on-change="[[ function(e) { $variables.editRuleEnabled = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
                   <option value="Y">Active</option>
                   <option value="N">Disabled</option>
               </select>
@@ -150,17 +152,128 @@
           </div>
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-1">Rule Name</label>
-            <input type="text" value="[[ $variables.editRuleName ]]" on-input="[[ function(e) { $variables.editRuleName = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
-          </div>
-          <div>
-            <label class="block text-sm font-bold text-slate-700 mb-1">Threshold / Configuration</label>
-            <input type="text" value="[[ $variables.editRuleThreshold ]]" on-input="[[ function(e) { $variables.editRuleThreshold = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm font-mono text-sm">
+            <input type="text" :value="[[ $variables.editRuleName ]]" on-input="[[ function(e) { $variables.editRuleName = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
           </div>
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-1">Description</label>
-            <textarea value="[[ $variables.editRuleDescription ]]" on-input="[[ function(e) { $variables.editRuleDescription = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" rows="3"></textarea>
+            <textarea :value="[[ $variables.editRuleDescription ]]" on-input="[[ function(e) { $variables.editRuleDescription = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm" rows="2"></textarea>
+          </div>
+
+          <!-- DYNAMIC PARAMETERS SECTION -->
+          <div class="mt-6 border-t border-slate-200 pt-5">
+            <h4 class="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">Rule Parameters</h4>
+            
+            <!-- FR-008: Missing UOM -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-008' ]]">
+              <div class="space-y-3">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" :checked="[[ $variables.editConfigState.allowWs ]]" on-change="[[ function(e) { $variables.editConfigState.allowWs = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Treat whitespace-only strings as missing</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" :checked="[[ $variables.editConfigState.defUom ]]" on-change="[[ function(e) { $variables.editConfigState.defUom = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Allow fallback to default Item UOM if missing</span>
+                </label>
+              </div>
+            </oj-bind-if>
+
+            <!-- FR-009: Invalid Quantity -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-009' ]]">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-1">Operator</label>
+                  <select :value="[[ $variables.editConfigState.op ]]" on-change="[[ function(e) { $variables.editConfigState.op = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                    <option value=">">Greater Than (>)</option>
+                    <option value=">=">Greater or Equal (>=)</option>
+                    <option value="=">Equals (=)</option>
+                    <option value="<">Less Than (<)</option>
+                    <option value="<=">Less or Equal (<=)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-1">Target Value</label>
+                  <input type="number" :value="[[ $variables.editConfigState.target ]]" on-input="[[ function(e) { $variables.editConfigState.target = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                </div>
+              </div>
+              <label class="flex items-center gap-3 cursor-pointer mt-3">
+                <input type="checkbox" :checked="[[ $variables.editConfigState.allowNull ]]" on-change="[[ function(e) { $variables.editConfigState.allowNull = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                <span class="text-sm font-bold text-slate-700">Allow Null quantities</span>
+              </label>
+            </oj-bind-if>
+
+            <!-- FR-010: Exact Duplicate -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-010' ]]">
+              <div class="space-y-3">
+                <p class="text-xs text-slate-500 mb-2">Check the fields that must match to trigger a duplicate warning.</p>
+                <label class="flex items-center gap-3 cursor-not-allowed opacity-60">
+                  <input type="checkbox" checked disabled class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Parent Item Number (Required)</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-not-allowed opacity-60">
+                  <input type="checkbox" checked disabled class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Component Item Number (Required)</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" :checked="[[ $variables.editConfigState.opSeq ]]" on-change="[[ function(e) { $variables.editConfigState.opSeq = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Operation Sequence</span>
+                </label>
+              </div>
+            </oj-bind-if>
+
+            <!-- FR-011: Obsolete Component -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-011' ]]">
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Flagged Statuses (Comma Separated)</label>
+                <input type="text" :value="[[ $variables.editConfigState.statuses ]]" on-input="[[ function(e) { $variables.editConfigState.statuses = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm uppercase">
+                <p class="text-xs text-slate-500 mt-1">e.g., OBSOLETE, INACTIVE, END_OF_LIFE</p>
+              </div>
+            </oj-bind-if>
+
+            <!-- FR-012: Invalid Effectivity -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-012' ]]">
+              <div class="space-y-3">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" :checked="[[ $variables.editConfigState.endAfter ]]" on-change="[[ function(e) { $variables.editConfigState.endAfter = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Ensure End Date occurs after Start Date</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" :checked="[[ $variables.editConfigState.open ]]" on-change="[[ function(e) { $variables.editConfigState.open = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Allow missing/null End Date (open-ended)</span>
+                </label>
+              </div>
+            </oj-bind-if>
+
+            <!-- FR-013: Circular Reference -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-013' ]]">
+              <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">Max Traversal Depth</label>
+                <input type="number" :value="[[ $variables.editConfigState.depth ]]" on-input="[[ function(e) { $variables.editConfigState.depth = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                <p class="text-xs text-slate-500 mt-1">Limits the hierarchy depth check to prevent timeouts.</p>
+              </div>
+            </oj-bind-if>
+
+            <!-- FR-014: Quantity Anomaly -->
+            <oj-bind-if test="[[ $variables.editRuleCode === 'FR-014' ]]">
+              <div class="space-y-4">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" :checked="[[ $variables.editConfigState.useComp ]]" on-change="[[ function(e) { $variables.editConfigState.useComp = e.target.checked; } ]]" class="w-5 h-5 accent-slate-900">
+                  <span class="text-sm font-bold text-slate-700">Use dynamic thresholds from BOM Component line</span>
+                </label>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Fallback Minimum</label>
+                    <input type="number" step="0.1" :value="[[ $variables.editConfigState.min ]]" on-input="[[ function(e) { $variables.editConfigState.min = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Fallback Maximum</label>
+                    <input type="number" step="1" :value="[[ $variables.editConfigState.max ]]" on-input="[[ function(e) { $variables.editConfigState.max = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+                  </div>
+                </div>
+              </div>
+            </oj-bind-if>
           </div>
         </div>
+
         <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
           <button on-click="[[ $listeners.clickCloseEditRule ]]" class="px-6 py-3 rounded-xl border border-slate-300 bg-white font-bold hover:bg-slate-50 transition-colors text-slate-700 text-sm shadow-sm">Cancel</button>
           <button on-click="[[ $listeners.clickSubmitEditRule ]]" class="px-6 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors text-sm shadow-sm">Update Rule</button>
@@ -192,16 +305,16 @@
         <div class="space-y-5 mt-6">
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-2">Select Run Time (UTC)</label>
-            <input type="time" value="[[ $variables.scheduleTime ]]" on-input="[[ function(e) { $variables.scheduleTime = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
+            <input type="time" :value="[[ $variables.scheduleTime ]]" on-input="[[ function(e) { $variables.scheduleTime = e.target.value; } ]]" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base font-bold text-slate-800 focus:ring-2 focus:ring-slate-900 focus:outline-none shadow-sm">
           </div>
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-3">Interval Configuration</label>
             <div class="flex gap-6 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
               <label class="flex items-center gap-3 cursor-pointer text-base font-bold text-slate-800">
-                <input type="radio" name="interval" value="Daily" checked="[[ $variables.scheduleInterval === 'Daily' ]]" on-change="[[ function(e) { $variables.scheduleInterval = e.target.value; } ]]" class="w-5 h-5 accent-slate-900"> Daily
+                <input type="radio" name="interval" value="Daily" :checked="[[ $variables.scheduleInterval === 'Daily' ]]" on-change="[[ function(e) { $variables.scheduleInterval = e.target.value; } ]]" class="w-5 h-5 accent-slate-900"> Daily
               </label>
               <label class="flex items-center gap-3 cursor-pointer text-base font-bold text-slate-800">
-                <input type="radio" name="interval" value="Weekly" checked="[[ $variables.scheduleInterval === 'Weekly' ]]" on-change="[[ function(e) { $variables.scheduleInterval = e.target.value; } ]]" class="w-5 h-5 accent-slate-900"> Weekly
+                <input type="radio" name="interval" value="Weekly" :checked="[[ $variables.scheduleInterval === 'Weekly' ]]" on-change="[[ function(e) { $variables.scheduleInterval = e.target.value; } ]]" class="w-5 h-5 accent-slate-900"> Weekly
               </label>
             </div>
           </div>
@@ -213,5 +326,4 @@
       </div>
     </div>
   </oj-bind-if>
-
 </div>

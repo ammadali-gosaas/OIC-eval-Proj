@@ -8,10 +8,6 @@
     "runHistoryList": {
       "type": "any",
       "defaultValue": []
-    },
-    "isTriggering": {
-      "type": "boolean",
-      "defaultValue": false
     }
   },
   "metadata": {},
@@ -79,74 +75,6 @@
         }
       }
     },
-    "triggerValidationChain": {
-      "description": "POST BOMValidation/createValidationRun to trigger full validation",
-      "root": "setTriggering",
-      "actions": {
-        "setTriggering": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.isTriggering": {
-              "source": true
-            }
-          },
-          "outcomes": {
-            "success": "callCreateRun"
-          }
-        },
-        "callCreateRun": {
-          "module": "vb/action/builtin/restAction",
-          "parameters": {
-            "endpoint": "BOMValidation/createValidationRun"
-          },
-          "outcomes": {
-            "success": "notifySuccess",
-            "failure": "notifyError"
-          }
-        },
-        "notifySuccess": {
-          "module": "vb/action/builtin/fireNotificationEventAction",
-          "parameters": {
-            "target": "leaf",
-            "summary": "Full validation triggered. Refreshing run list…",
-            "type": "confirmation",
-            "displayMode": "transient"
-          },
-          "outcomes": {
-            "success": "reloadRuns"
-          }
-        },
-        "reloadRuns": {
-          "module": "vb/action/builtin/callChainAction",
-          "parameters": {
-            "id": "loadRunsChain"
-          },
-          "outcomes": {
-            "success": "clearTriggering"
-          }
-        },
-        "notifyError": {
-          "module": "vb/action/builtin/fireNotificationEventAction",
-          "parameters": {
-            "target": "leaf",
-            "summary": "Failed to trigger validation. Please try again.",
-            "type": "error",
-            "displayMode": "persist"
-          },
-          "outcomes": {
-            "success": "clearTriggering"
-          }
-        },
-        "clearTriggering": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.isTriggering": {
-              "source": false
-            }
-          }
-        }
-      }
-    },
     "ToggleRowChain": {
       "variables": {
         "rowId": {
@@ -203,13 +131,6 @@
           "parameters": {
             "rowId": "{{ $event.currentTarget.dataset.rowId }}"
           }
-        }
-      ]
-    },
-    "clickTriggerValidation": {
-      "chains": [
-        {
-          "chainId": "triggerValidationChain"
         }
       ]
     }
