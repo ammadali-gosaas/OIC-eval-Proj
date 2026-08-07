@@ -1,7 +1,7 @@
 SET DEFINE OFF
 SET SERVEROUTPUT ON
 
-PROMPT Re-enabling BOM_APP_USER schema and defining complete BOM validation ORDS API module
+PROMPT Re-enabling ZA_SCHEMA schema and defining complete BOM validation ORDS API module
 
 BEGIN
     ORDS.ENABLE_SCHEMA(
@@ -98,29 +98,79 @@ END;
     -- 2. BOM SUMMARY & DETAIL ENDPOINTS
     --------------------------------------------------------------------
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms');
+    
+    -- UNPAGINATED ALL-RECORDS HANDLER (Direct CLOB Stream)
     ORDS.DEFINE_HANDLER(
-        p_module_name    => 'bom_api',
-        p_pattern        => 'boms',
-        p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
-        p_source         => q'[
-SELECT b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at,
-       COUNT(c.bom_component_id) component_count,
-       (SELECT COUNT(*) FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id WHERE br.bom_id = b.bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED')) open_finding_count,
-       (SELECT LISTAGG(DISTINCT vr.severity, ',') WITHIN GROUP (ORDER BY vr.severity)
-          FROM bom_runs br
-          JOIN validation_findings vf ON vf.run_id = br.run_id
-          JOIN validation_rules vr ON vr.rule_id = vf.rule_id
-         WHERE br.bom_id = b.bom_id
-           AND vf.issue_status IN ('OPEN', 'REVIEWED')) finding_severities
-  FROM boms b LEFT JOIN bom_components c ON c.bom_id = b.bom_id
- WHERE (:search_text IS NULL OR UPPER(b.item_number) LIKE '%' || UPPER(:search_text) || '%' OR UPPER(NVL(b.description, '')) LIKE '%' || UPPER(:search_text) || '%')
-   AND (:status_label IS NULL OR b.status_label = :status_label)
-   AND (:item_class IS NULL OR b.item_class = :item_class)
-   AND (:severity IS NULL OR EXISTS (SELECT 1 FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id JOIN validation_rules vr ON vr.rule_id = vf.rule_id WHERE br.bom_id = b.bom_id AND vr.severity = :severity AND vf.issue_status IN ('OPEN', 'REVIEWED')))
- GROUP BY b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at
- ORDER BY b.health_score ASC, b.item_number
+        p_module_name   => 'bom_api',
+        p_pattern       => 'boms',
+        p_method        => 'GET',
+        p_source_type   => ORDS.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source        => q'[
+DECLARE
+    v_arr    CLOB;
+    v_len    NUMBER;
+    v_offset NUMBER := 1;
+    v_amount NUMBER := 8000;
+BEGIN
+    SELECT NVL(
+               JSON_ARRAYAGG(
+                   JSON_OBJECT(
+                       'bom_id'             VALUE b.bom_id,
+                       'organization_code'  VALUE b.organization_code,
+                       'item_number'        VALUE b.item_number,
+                       'structure_name'     VALUE b.structure_name,
+                       'description'        VALUE b.description,
+                       'item_class'         VALUE b.item_class,
+                       'health_score'       VALUE b.health_score,
+                       'status_label'       VALUE b.status_label,
+                       'imported_at'        VALUE TO_CHAR(b.imported_at, 'YYYY-MM-DD"T"HH24:MI:SS.FF3"Z"'),
+                       'component_count'    VALUE b.component_count,
+                       'open_finding_count' VALUE b.open_finding_count,
+                       'finding_severities' VALUE b.finding_severities
+                   ) ORDER BY b.health_score ASC, b.item_number RETURNING CLOB
+               ),
+               TO_CLOB('[]')
+           )
+      INTO v_arr
+      FROM (
+          SELECT b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at,
+                 COUNT(c.bom_component_id) component_count,
+                 (SELECT COUNT(*) FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id WHERE br.bom_id = b.bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED')) open_finding_count,
+                 (SELECT LISTAGG(DISTINCT vr.severity, ',') WITHIN GROUP (ORDER BY vr.severity)
+                    FROM bom_runs br
+                    JOIN validation_findings vf ON vf.run_id = br.run_id
+                    JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+                   WHERE br.bom_id = b.bom_id
+                     AND vf.issue_status IN ('OPEN', 'REVIEWED')) finding_severities
+            FROM boms b LEFT JOIN bom_components c ON c.bom_id = b.bom_id
+           WHERE (:search_text IS NULL OR UPPER(b.item_number) LIKE '%' || UPPER(:search_text) || '%' OR UPPER(NVL(b.description, '')) LIKE '%' || UPPER(:search_text) || '%')
+             AND (:status_label IS NULL OR b.status_label = :status_label)
+             AND (:item_class IS NULL OR b.item_class = :item_class)
+             AND (:severity IS NULL OR EXISTS (SELECT 1 FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id JOIN validation_rules vr ON vr.rule_id = vf.rule_id WHERE br.bom_id = b.bom_id AND vr.severity = :severity AND vf.issue_status IN ('OPEN', 'REVIEWED')))
+           GROUP BY b.bom_id, b.organization_code, b.item_number, b.structure_name, b.description, b.item_class, b.health_score, b.status_label, b.imported_at
+           ORDER BY b.health_score ASC, b.item_number
+      ) b;
+
+    owa_util.mime_header('application/json', TRUE);
+    HTP.PRN('{"items":');
+    
+    IF v_arr IS NOT NULL THEN
+        v_len := DBMS_LOB.GETLENGTH(v_arr);
+        WHILE v_offset <= v_len LOOP
+            HTP.PRN(DBMS_LOB.SUBSTR(v_arr, v_amount, v_offset));
+            v_offset := v_offset + v_amount;
+        END LOOP;
+    ELSE
+        HTP.PRN('[]');
+    END IF;
+    
+    HTP.PRN('}');
+EXCEPTION
+    WHEN OTHERS THEN
+        owa_util.mime_header('application/json', TRUE);
+        HTP.PRN('{"error":"' || REPLACE(SQLERRM, '"', '\"') || '","items":[]}');
+END;
         ]'
     );
 
@@ -900,7 +950,6 @@ BEGIN
        SET rule_name = NVL(v_name, rule_name),
            severity = NVL(v_severity, severity),
            description = NVL(v_desc, description),
-           rule_config = NVL(v_desc, description),
            rule_config = NVL(v_config, rule_config),
            enabled_flag = v_enabled,
            updated_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
