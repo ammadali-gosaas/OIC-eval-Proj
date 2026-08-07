@@ -350,22 +350,67 @@ END;
     );
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id');
+    -- 1. Fix the main BOM detail endpoint (Used by OIC)
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
         p_pattern        => 'boms/:bom_id',
         p_method         => 'GET',
         p_source_type    => ORDS.source_type_query,
         p_items_per_page => 0,
-        p_source         => q'#
+        p_source         => q'[
 SELECT JSON_OBJECT(
            'bom' VALUE JSON_OBJECT('bomId' VALUE b.bom_id, 'billSequenceId' VALUE b.bill_sequence_id, 'organizationCode' VALUE b.organization_code, 'itemNumber' VALUE b.item_number, 'structureName' VALUE b.structure_name, 'description' VALUE b.description, 'effectivityControl' VALUE b.effectivity_control, 'sourceUpdatedAt' VALUE TO_CHAR(b.source_updated_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'), 'importBatchId' VALUE b.import_batch_id, 'importedAt' VALUE TO_CHAR(b.imported_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'), 'itemClass' VALUE b.item_class, 'healthScore' VALUE b.health_score, 'statusLabel' VALUE b.status_label),
            'components' VALUE (SELECT JSON_ARRAYAGG(JSON_OBJECT('bomComponentId' VALUE c.bom_component_id, 'componentSequenceId' VALUE c.component_sequence_id, 'parentItemNumber' VALUE c.parent_item_number, 'componentItemNumber' VALUE c.component_item_number, 'componentItemClass' VALUE c.component_item_class, 'quantity' VALUE c.quantity, 'uomCode' VALUE c.uom_code, 'itemSequenceNumber' VALUE c.item_sequence_number, 'operationSequence' VALUE c.operation_sequence, 'itemStatus' VALUE c.item_status, 'bomLevel' VALUE c.bom_level, 'componentPath' VALUE c.component_path, 'anomalyMinQuantity' VALUE c.anomaly_min_quantity, 'anomalyMaxQuantity' VALUE c.anomaly_max_quantity) ORDER BY c.bom_level, c.item_sequence_number, c.bom_component_id RETURNING CLOB) FROM bom_components c WHERE c.bom_id = b.bom_id),
-           'findings' VALUE (SELECT JSON_ARRAYAGG(JSON_OBJECT('findingId' VALUE vf.finding_id, 'runId' VALUE vf.run_id, 'bomComponentId' VALUE vf.bom_component_id, 'ruleCode' VALUE vr.rule_code, 'ruleName' VALUE vr.rule_name, 'severity' VALUE vr.severity, 'findingKey' VALUE vf.finding_key, 'issueStatus' VALUE vf.issue_status, 'actualValue' VALUE vf.actual_value, 'expectedValue' VALUE vf.expected_value, 'evidence' VALUE vf.evidence_json FORMAT JSON, 'createdAt' VALUE TO_CHAR(vf.created_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')) ORDER BY vf.created_at DESC, vf.finding_id DESC RETURNING CLOB) FROM bom_runs br JOIN validation_findings vf ON vf.run_id = br.run_id JOIN validation_rules vr ON vr.rule_id = vf.rule_id WHERE br.bom_id = b.bom_id)
+           'findings' VALUE (SELECT JSON_ARRAYAGG(JSON_OBJECT(
+               'findingId' VALUE vf.finding_id, 
+               'runId' VALUE vf.run_id, 
+               'bomComponentId' VALUE vf.bom_component_id, 
+               'ruleCode' VALUE vr.rule_code, 
+               'ruleName' VALUE vr.rule_name, 
+               'severity' VALUE vr.severity, 
+               'findingKey' VALUE vf.finding_key, 
+               'issueStatus' VALUE vf.issue_status, 
+               'actualValue' VALUE vf.actual_value, 
+               'expectedValue' VALUE vf.expected_value, 
+               'evidence' VALUE vf.evidence_json FORMAT JSON, 
+               'createdAt' VALUE TO_CHAR(vf.created_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+           ) ORDER BY vf.created_at DESC, vf.finding_id DESC RETURNING CLOB) 
+           FROM bom_runs br 
+           JOIN validation_findings vf ON vf.run_id = br.run_id 
+           JOIN validation_rules vr ON vr.rule_id = vf.rule_id 
+           WHERE br.bom_id = b.bom_id
+             AND br.run_id = (SELECT MAX(run_id) FROM bom_runs WHERE bom_id = b.bom_id AND run_kind = 'VALIDATION')
+             AND vf.issue_status IN ('OPEN', 'REVIEWED'))
            RETURNING CLOB
        ) bom_detail_json FROM boms b WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
-        #'
+        ]'
     );
 
+    -- 2. Fix the Findings List endpoint (Used by VBCS UI & potentially OIC)
+    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings');
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'boms/:bom_id/findings',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 100,
+        p_source         => q'#
+SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, 
+       vr.rule_code, vr.rule_name, vr.severity, vf.issue_status, 
+       vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+  FROM validation_findings vf
+  JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+  JOIN bom_runs br ON br.run_id = vf.run_id
+  JOIN boms b ON b.bom_id = br.bom_id
+ WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+   AND br.run_id = (SELECT MAX(run_id) FROM bom_runs WHERE bom_id = b.bom_id AND run_kind = 'VALIDATION')
+ ORDER BY vf.created_at DESC
+        #'
+    );
+    
+ 
+
+ 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/refresh');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -562,7 +607,7 @@ END;
         p_method        => 'POST',
         p_source_type   => ORDS.source_type_plsql,
         p_mimes_allowed => 'application/json',
-        p_source        => q'#
+        p_source        => q'[
 DECLARE
     v_bom_id          NUMBER := TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR);
     v_requested_by    VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
@@ -599,10 +644,11 @@ BEGIN
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' INTO v_now FROM dual;
     SELECT health_score INTO v_score FROM boms WHERE bom_id = v_bom_id;
     
+    -- UPDATED: Only count findings from the most recent run
     SELECT COUNT(*) INTO v_finding_cnt 
-      FROM bom_runs br 
-      JOIN validation_findings vf ON vf.run_id = br.run_id 
-     WHERE br.bom_id = v_bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED');
+      FROM validation_findings vf 
+     WHERE vf.run_id = (SELECT MAX(run_id) FROM bom_runs WHERE bom_id = v_bom_id)
+       AND vf.issue_status IN ('OPEN', 'REVIEWED');
 
     v_corr_id := 'AI-BOM-' || TO_CHAR(v_now, 'YYYYMMDDHH24MISSFF3') || '-' || RAWTOHEX(SYS_GUID());
 
@@ -620,8 +666,9 @@ EXCEPTION
     WHEN NO_DATA_FOUND THEN :status_code := 404; 
     WHEN OTHERS THEN ROLLBACK; :status_code := 400;
 END;
-        #'
+        ]'
     );
+ 
 
     ORDS.DEFINE_PARAMETER(
         p_module_name        => 'bom_api',
@@ -843,26 +890,6 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
      AND (:issue_status IS NULL OR vf.issue_status = :issue_status)
      AND (:severity IS NULL OR vr.severity = :severity)
      AND (:rule_code IS NULL OR vr.rule_code = :rule_code)
- ORDER BY vf.created_at DESC
-        #'
-    );
-
-    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings');
-    ORDS.DEFINE_HANDLER(
-        p_module_name    => 'bom_api',
-        p_pattern        => 'boms/:bom_id/findings',
-        p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
-        p_source         => q'#
-SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, 
-       vr.rule_code, vr.rule_name, vr.severity, vf.issue_status, 
-       vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
-  FROM validation_findings vf
-  JOIN validation_rules vr ON vr.rule_id = vf.rule_id
-  JOIN bom_runs br ON br.run_id = vf.run_id
-  JOIN boms b ON b.bom_id = br.bom_id
- WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
  ORDER BY vf.created_at DESC
         #'
     );
