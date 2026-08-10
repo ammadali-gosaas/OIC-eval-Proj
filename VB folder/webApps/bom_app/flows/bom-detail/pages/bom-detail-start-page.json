@@ -24,7 +24,7 @@
         "sourceUpdatedAt": "",
         "importBatchId": "",
         "importedAt": "",
-        "healthScore": 0
+        "healthScore": 100
       }
     },
     "filterStatus": {
@@ -48,7 +48,7 @@
         }
       },
       "events": {
-        "onResponse": "HandleFindingsResponseChain"
+        "onResponse": "HandleItemsSourceChain"
       }
     },
     "hasNoFindings": {
@@ -86,6 +86,18 @@
       "type": "string",
       "defaultValue": ""
     },
+    "findingAdvisoryStatus": {
+      "type": "string",
+      "defaultValue": "NOT_REQUESTED"
+    },
+    "findingAdvisoryText": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "findingAdvisoryMitigation": {
+      "type": "string",
+      "defaultValue": ""
+    },
     "advisoryRequestId": {
       "type": "string",
       "defaultValue": ""
@@ -110,9 +122,6 @@
           "parameters": {
             "module": "[[ $functions ]]",
             "functionName": "loadTailwind"
-          },
-          "outcomes": {
-            "success": "loadBomDetail"
           }
         }
       }
@@ -212,54 +221,7 @@
             }
           },
           "outcomes": {
-            "success": "loadBomRuns"
-          }
-        },
-        "loadBomRuns": {
-          "module": "vb/action/builtin/restAction",
-          "parameters": {
-            "endpoint": "BOMValidation/listBomRuns",
-            "uriParams": {
-              "bom_id": "{{ $page.variables.bomId }}"
-            }
-          },
-          "outcomes": {
-            "success": "assignRunHistory",
-            "failure": "fireLoadError"
-          }
-        },
-        "assignRunHistory": {
-          "module": "vb/action/builtin/callModuleFunctionAction",
-          "parameters": {
-            "module": "[[ $functions ]]",
-            "functionName": "parseRunsResponse",
-            "params": [
-              "{{ $chain.results.loadBomRuns.body }}"
-            ]
-          },
-          "outcomes": {
-            "success": "assignRunHistoryVar"
-          }
-        },
-        "assignRunHistoryVar": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.runHistoryList": {
-              "source": "{{ $chain.results.assignRunHistory }}",
-              "auto": "always"
-            }
-          },
-          "outcomes": {
             "success": "parseAuditTrail"
-          }
-        },
-        "fireLoadError": {
-          "module": "vb/action/builtin/fireNotificationEventAction",
-          "parameters": {
-            "target": "leaf",
-            "summary": "Failed to load BOM detail. Please check your connection.",
-            "type": "error",
-            "displayMode": "persist"
           }
         },
         "parseAuditTrail": {
@@ -284,7 +246,54 @@
             }
           },
           "outcomes": {
+            "success": "loadBomRuns"
+          }
+        },
+        "loadBomRuns": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/listBomRuns",
+            "uriParams": {
+              "bom_id": "{{ $page.variables.bomId }}"
+            }
+          },
+          "outcomes": {
+            "success": "assignRunHistory",
+            "failure": "callGetAdvisoriesList"
+          }
+        },
+        "assignRunHistory": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseRunsResponse",
+            "params": [
+              "{{ $chain.results.loadBomRuns.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignRunHistoryVar"
+          }
+        },
+        "assignRunHistoryVar": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.runHistoryList": {
+              "source": "{{ $chain.results.assignRunHistory }}",
+              "auto": "always"
+            }
+          },
+          "outcomes": {
             "success": "callGetAdvisoriesList"
+          }
+        },
+        "fireLoadError": {
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "target": "leaf",
+            "summary": "Failed to load BOM detail. Please check your connection.",
+            "type": "error",
+            "displayMode": "persist"
           }
         },
         "callGetAdvisoriesList": {
@@ -471,6 +480,83 @@
         }
       }
     },
+    "requestFindingAdvisoryChain": {
+      "description": "Call FindingAdvisoryService (OIC) for the selected finding in Findings tab",
+      "root": "setFindingAdvisoryLoading",
+      "actions": {
+        "setFindingAdvisoryLoading": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.findingAdvisoryStatus": {
+              "source": "GENERATING"
+            },
+            "$page.variables.findingAdvisoryText": {
+              "source": "Generating AI advisory… This may take a moment."
+            },
+            "$page.variables.findingAdvisoryMitigation": {
+              "source": ""
+            }
+          },
+          "outcomes": {
+            "success": "callOICIntegration"
+          }
+        },
+        "callOICIntegration": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "FindingAdvisoryService/getFindingAdvisory",
+            "queryParams": {
+              "finding_id": "{{ String($page.variables.selectedFindingId) }}"
+            }
+          },
+          "outcomes": {
+            "success": "parseOICResult",
+            "failure": "advisoryError"
+          }
+        },
+        "parseOICResult": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseFindingAdvisoryResponse",
+            "params": [
+              "{{ $chain.results.callOICIntegration.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignOICResult"
+          }
+        },
+        "assignOICResult": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.findingAdvisoryStatus": {
+              "source": "{{ $chain.results.parseOICResult.status }}",
+              "auto": "always"
+            },
+            "$page.variables.findingAdvisoryText": {
+              "source": "{{ $chain.results.parseOICResult.context }}",
+              "auto": "always"
+            },
+            "$page.variables.findingAdvisoryMitigation": {
+              "source": "{{ $chain.results.parseOICResult.mitigation }}",
+              "auto": "always"
+            }
+          }
+        },
+        "advisoryError": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.findingAdvisoryStatus": {
+              "source": "ERROR"
+            },
+            "$page.variables.findingAdvisoryText": {
+              "source": "AI Advisory generation failed or timed out. Please check OIC integration logs."
+            }
+          }
+        }
+      }
+    },
     "selectFindingChain": {
       "variables": {
         "findingId": {
@@ -485,6 +571,66 @@
           "parameters": {
             "$page.variables.selectedFindingId": {
               "source": "{{ $chain.variables.findingId }}"
+            }
+          },
+          "outcomes": {
+            "success": "fetchExistingFindingAdvisory"
+          }
+        },
+        "fetchExistingFindingAdvisory": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/getFindingAdvisories",
+            "uriParams": {
+              "finding_id": "{{ $page.variables.selectedFindingId }}"
+            }
+          },
+          "outcomes": {
+            "success": "parseExistingFindingAdvisory",
+            "failure": "resetFindingAdvisory"
+          }
+        },
+        "parseExistingFindingAdvisory": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseLatestFindingAdvisory",
+            "params": [
+              "{{ $chain.results.fetchExistingFindingAdvisory.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignFindingAdvisory"
+          }
+        },
+        "assignFindingAdvisory": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.findingAdvisoryStatus": {
+              "source": "{{ $chain.results.parseExistingFindingAdvisory.status }}",
+              "auto": "always"
+            },
+            "$page.variables.findingAdvisoryText": {
+              "source": "{{ $chain.results.parseExistingFindingAdvisory.context }}",
+              "auto": "always"
+            },
+            "$page.variables.findingAdvisoryMitigation": {
+              "source": "{{ $chain.results.parseExistingFindingAdvisory.mitigation }}",
+              "auto": "always"
+            }
+          }
+        },
+        "resetFindingAdvisory": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.findingAdvisoryStatus": {
+              "source": "NOT_REQUESTED"
+            },
+            "$page.variables.findingAdvisoryText": {
+              "source": ""
+            },
+            "$page.variables.findingAdvisoryMitigation": {
+              "source": ""
             }
           }
         }
@@ -593,7 +739,7 @@
         }
       }
     },
-    "HandleFindingsResponseChain": {
+    "HandleItemsSourceChain": {
       "description": "Updates hasNoFindings flag based on API response item count",
       "root": "checkEmpty",
       "actions": {
@@ -748,6 +894,7 @@
     "clickHistory": { "chains": [ { "chainId": "ChangeTabChain", "parameters": { "tabName": "History" } } ] },
     "clickRefresh": { "chains": [ { "chainId": "refreshBomChain" } ] },
     "clickRequestAdvisory": { "chains": [ { "chainId": "requestBomAdvisoryChain" } ] },
+    "clickRequestFindingAdvisory": { "chains": [ { "chainId": "requestFindingAdvisoryChain" } ] },
     "clickFinding": {
       "chains": [
         {
@@ -785,9 +932,7 @@
         }
       ]
     }
-
   },
-  
   "imports": {
     "components": {
       "oj-bind-if": { "path": "ojs/ojbindif" },

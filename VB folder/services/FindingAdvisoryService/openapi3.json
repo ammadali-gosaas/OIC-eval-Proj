@@ -1,0 +1,158 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "FINDING_AI_ADVISORY_SERVICE",
+        "version": "01.00.0000",
+        "x-vb": {
+            "serviceType": "openapi"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://gosaas-oic-gosaas-ia.integration.us-ashburn-1.ocp.oraclecloud.com/ic/api/integration/v2/flows/rest/project/ZA_PLM/FINDING_AI_ADVISORY_SERVICE/1.0",
+            "x-vb": {
+                "authentication": {
+                    "authenticated": {
+                        "type": "oauth2_user_assertion",
+                        "scope": "https://27AB99603F0E412C82017D2BD66711A2.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all"
+                    }
+                },
+                "forceProxy": "cors"
+            }
+        }
+    ],
+    "paths": {
+        "/finding-advisory": {
+            "get": {
+                "parameters": [
+                    {
+                        "name": "finding_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "500": {
+                        "description": "Faults",
+                        "content": {}
+                    },
+                    "default": {
+                        "description": "A sample description of the Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/response-wrapper"
+                                },
+                                "example": "{\"ai_summary\":\"summary\",\"ai_suggested_action\":\"action\"}"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                {
+                    "oauth2Authentication": []
+                },
+                {
+                    "basicAuthentication": []
+                }
+            ],
+                "operationId": "getFindingAdvisory"
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "response-wrapper": {
+                "required": [
+                    "ai_suggested_action",
+                    "ai_summary"
+                ],
+                "type": "object",
+                "properties": {
+                    "ai_summary": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "ai_suggested_action": {
+                        "type": "string",
+                        "example": null
+                    }
+                },
+                "example": "{\"ai_summary\":\"summary\",\"ai_suggested_action\":\"action\"}"
+            },
+            "APIInvocationError": {
+                "required": [
+                    "detail",
+                    "errorCode",
+                    "errorDetails",
+                    "title",
+                    "type"
+                ],
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "title": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "detail": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "errorCode": {
+                        "type": "string",
+                        "example": null
+                    },
+                    "errorDetails": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                            "required": [
+                                "errorCode",
+                                "errorPath",
+                                "instance",
+                                "title",
+                                "type"
+                            ],
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "instance": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "errorPath": {
+                                    "type": "string",
+                                    "example": null
+                                },
+                                "errorCode": {
+                                    "type": "string",
+                                    "example": null
+                                }
+                            },
+                            "example": null
+                        }
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "basicAuthentication": {
+                "type": "http",
+                "scheme": "basic"
+            }
+        }
+    }
+}

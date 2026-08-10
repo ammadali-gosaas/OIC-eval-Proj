@@ -12,7 +12,7 @@ define([], function () {
     }
   };
 
-  // Parses the raw JSON string from the DB into a flat state object for the UI
+  // Parses raw JSON string from DB into flat state object
   PageModule.prototype.parseRuleConfig = function(ruleCode, configStr) {
     let config = {};
     try { config = JSON.parse(configStr || '{}'); } catch(e){}
@@ -42,7 +42,7 @@ define([], function () {
     return state;
   };
 
-  // Converts the UI state object back into the specific JSON format the DB requires
+  // Converts UI state object back into JSON format required by DB
   PageModule.prototype.buildRuleConfig = function(ruleCode, state) {
     let config = {};
     if (ruleCode === 'FR-008') {
@@ -70,6 +70,31 @@ define([], function () {
     }
     return JSON.stringify(config);
   };
+// Converts raw database scheduler metadata into clean business text
+  PageModule.prototype.formatScheduleInfo = function (item) {
+    if (!item) return 'No active background schedule configured.';
 
+    let intervalStr = (item.repeat_interval || '').toUpperCase();
+    let frequency = intervalStr.includes('FREQ=WEEKLY') ? 'Weekly' : 'Daily';
+
+    let nextRunDate = item.next_run_date ? new Date(item.next_run_date) : null;
+    let timeFormatted = '';
+    let dateFormatted = '';
+
+    if (nextRunDate && !isNaN(nextRunDate.getTime())) {
+      timeFormatted = nextRunDate.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      dateFormatted = nextRunDate.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    return frequency + ' at ' + timeFormatted + ' (GMT+5) • Next Run: ' + dateFormatted + ' at ' + timeFormatted;
+  };
   return PageModule;
 });

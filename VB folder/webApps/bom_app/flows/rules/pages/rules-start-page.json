@@ -10,6 +10,7 @@
         "itemsPath": "items"
       }
     },
+    "activeScheduleInfo": { "type": "string", "defaultValue": "Checking active database schedule..." },
     "isAddRuleModalOpen": { "type": "boolean", "defaultValue": false },
     "isScheduleModalOpen": { "type": "boolean", "defaultValue": false },
     "isEditRuleModalOpen": { "type": "boolean", "defaultValue": false },
@@ -18,8 +19,8 @@
     "newRuleName": { "type": "string" },
     "newRuleDescription": { "type": "string" },
     "newRuleSeverity": { "type": "string", "defaultValue": "CRITICAL" },
-    "scheduleTime": { "type": "string" },
-    "scheduleInterval": { "type": "string", "defaultValue": "Daily" },
+    "scheduleTime": { "type": "string", "defaultValue": "01:45" },
+    "scheduleInterval": { "type": "string", "defaultValue": "DAILY" },
     "editRuleCode": { "type": "string" },
     "editRuleName": { "type": "string" },
     "editRuleDescription": { "type": "string" },
@@ -39,6 +40,76 @@
         "callFunctionLoadTailwind": {
           "module": "vb/action/builtin/callModuleFunctionAction",
           "parameters": { "module": "[[ $functions ]]", "functionName": "loadTailwind" }
+        }
+      }
+    },
+    "UpdateScheduleTimeChain": {
+      "variables": {
+        "timeVal": { "type": "string", "input": "fromCaller" }
+      },
+      "root": "assignTime",
+      "actions": {
+        "assignTime": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.scheduleTime": { "source": "{{ $chain.variables.timeVal }}" }
+          }
+        }
+      }
+    },
+    "UpdateScheduleIntervalChain": {
+      "variables": {
+        "intervalVal": { "type": "string", "input": "fromCaller" }
+      },
+      "root": "assignInterval",
+      "actions": {
+        "assignInterval": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.scheduleInterval": { "source": "{{ $chain.variables.intervalVal }}" }
+          }
+        }
+      }
+    },
+    "OpenScheduleModalChain": {
+      "root": "fetchActiveSchedule",
+      "actions": {
+        "fetchActiveSchedule": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/getSchedules"
+          },
+          "outcomes": {
+            "success": "parseScheduleResponse",
+            "failure": "setNoScheduleText"
+          }
+        },
+        "parseScheduleResponse": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "formatScheduleInfo",
+            "params": [
+              "[[ $chain.results.fetchActiveSchedule.body.items[0] ]]"
+            ]
+          },
+          "outcomes": {
+            "success": "assignScheduleText"
+          }
+        },
+        "assignScheduleText": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.activeScheduleInfo": { "source": "{{ $chain.results.parseScheduleResponse }}" },
+            "$page.variables.isScheduleModalOpen": { "source": true }
+          }
+        },
+        "setNoScheduleText": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.activeScheduleInfo": { "source": "No active background schedule configured." },
+            "$page.variables.isScheduleModalOpen": { "source": true }
+          }
         }
       }
     },
@@ -92,19 +163,6 @@
         }
       }
     },
-    "OpenScheduleModalChain": {
-      "root": "openModal",
-      "actions": {
-        "openModal": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.isScheduleModalOpen": { "source": true },
-            "$page.variables.scheduleTime": { "source": "07:00" },
-            "$page.variables.scheduleInterval": { "source": "Daily" }
-          }
-        }
-      }
-    },
     "CloseScheduleModalChain": {
       "root": "closeModal",
       "actions": {
@@ -118,10 +176,23 @@
           "module": "vb/action/builtin/restAction",
           "parameters": {
             "endpoint": "BOMValidation/createSchedule",
-            "body": { "time": "{{ $page.variables.scheduleTime }}", "interval": "{{ $page.variables.scheduleInterval }}" }
+            "body": {
+              "time": "{{ $page.variables.scheduleTime }}",
+              "interval": "{{ $page.variables.scheduleInterval }}"
+            }
           },
-          "outcomes": { "success": "closeModal", "failure": "fireErrorNotification" }
+          "outcomes": { "success": "notifySuccess", "failure": "fireErrorNotification" }
         },
+        "notifySuccess": {
+  "module": "vb/action/builtin/fireNotificationEventAction",
+  "parameters": {
+    "summary": "Schedule Created Successfully",
+    "message": "[[ 'Validation job scheduled to run ' + $page.variables.scheduleInterval + ' at ' + $page.variables.scheduleTime + ' (GMT+5).' ]]",
+    "type": "confirmation",
+    "displayMode": "transient"
+  },
+  "outcomes": { "success": "closeModal" }
+},
         "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isScheduleModalOpen": { "source": false } } },
         "fireErrorNotification": {
           "module": "vb/action/builtin/fireNotificationEventAction",
@@ -299,7 +370,24 @@
       ]
     },
     "clickCloseDeleteRule": { "chains": [ { "chainId": "CloseDeleteRuleModalChain" } ] },
-    "clickSubmitDeleteRule": { "chains": [ { "chainId": "SubmitDeleteRuleChain" } ] }
+    "clickSubmitDeleteRule": { "chains": [ { "chainId": "SubmitDeleteRuleChain" } ] },
+    "changeScheduleTime": {
+      "chains": [
+        {
+          "chainId": "UpdateScheduleTimeChain",
+          "parameters": { "timeVal": "{{ $event.target.value }}" }
+        }
+      ]
+    },
+    "changeScheduleInterval": {
+      "chains": [
+        {
+          "chainId": "UpdateScheduleIntervalChain",
+          "parameters": { "intervalVal": "{{ $event.target.value }}" }
+        }
+      ]
+    }
+
   },
   "imports": {
     "components": {

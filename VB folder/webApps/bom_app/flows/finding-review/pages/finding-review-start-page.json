@@ -57,7 +57,7 @@
         }
       },
       "events": {
-        "onResponse": "HandleFindingsResponseChain"
+        "onResponse": "HandleItemsSourceChain"
       }
     },
     "statusOptionsADP": {
@@ -93,7 +93,7 @@
         }
       }
     },
-    "HandleFindingsResponseChain": {
+    "HandleItemsSourceChain": {
       "description": "Updates hasNoFindings flag based on API response item count",
       "root": "checkEmpty",
       "actions": {
@@ -235,7 +235,58 @@
             },
             "$page.variables.statusComment": {
               "source": ""
+            }
+          },
+          "outcomes": {
+            "success": "fetchExistingFindingAdvisory"
+          }
+        },
+        "fetchExistingFindingAdvisory": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/getFindingAdvisories",
+            "uriParams": {
+              "finding_id": "{{ $page.variables.selectedFindingId }}"
+            }
+          },
+          "outcomes": {
+            "success": "parseExistingFindingAdvisory",
+            "failure": "resetFindingAdvisory"
+          }
+        },
+        "parseExistingFindingAdvisory": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "parseLatestFindingAdvisory",
+            "params": [
+              "{{ $chain.results.fetchExistingFindingAdvisory.body }}"
+            ]
+          },
+          "outcomes": {
+            "success": "assignFindingAdvisory"
+          }
+        },
+        "assignFindingAdvisory": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
+            "$page.variables.advisoryStatus": {
+              "source": "{{ $chain.results.parseExistingFindingAdvisory.status }}",
+              "auto": "always"
             },
+            "$page.variables.advisoryText": {
+              "source": "{{ $chain.results.parseExistingFindingAdvisory.context }}",
+              "auto": "always"
+            },
+            "$page.variables.advisoryMitigation": {
+              "source": "{{ $chain.results.parseExistingFindingAdvisory.mitigation }}",
+              "auto": "always"
+            }
+          }
+        },
+        "resetFindingAdvisory": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": {
             "$page.variables.advisoryStatus": {
               "source": "NOT_REQUESTED"
             },
@@ -326,7 +377,7 @@
       }
     },
     "RequestAdvisoryChain": {
-      "description": "POST createFindingAdvisory then GET getAdvisory for the selected finding",
+      "description": "Call FindingAdvisoryService (OIC) directly for the selected finding, wait for the response, and display it",
       "root": "setAdvisoryLoading",
       "actions": {
         "setAdvisoryLoading": {
@@ -336,93 +387,55 @@
               "source": "GENERATING"
             },
             "$page.variables.advisoryText": {
-              "source": "Generating AI advisory…"
+              "source": "Generating AI advisory… This may take a moment."
             },
             "$page.variables.advisoryMitigation": {
               "source": ""
             }
           },
           "outcomes": {
-            "success": "callCreateAdvisory"
+            "success": "callOICIntegration"
           }
         },
-        "callCreateAdvisory": {
+        "callOICIntegration": {
           "module": "vb/action/builtin/restAction",
           "parameters": {
-            "endpoint": "BOMValidation/createFindingAdvisory",
-            "uriParams": {
-              "finding_id": "{{ $page.variables.selectedFindingId }}"
+            "endpoint": "FindingAdvisoryService/getFindingAdvisory",
+            "queryParams": {
+              "finding_id": "{{ String($page.variables.selectedFindingId) }}"
             }
           },
           "outcomes": {
-            "success": "extractRequestId",
+            "success": "parseOICResult",
             "failure": "advisoryError"
           }
         },
-        "extractRequestId": {
+        "parseOICResult": {
           "module": "vb/action/builtin/callModuleFunctionAction",
           "parameters": {
             "module": "[[ $functions ]]",
-            "functionName": "extractAdvisoryRequestId",
+            "functionName": "parseFindingAdvisoryResponse",
             "params": [
-              "{{ $chain.results.callCreateAdvisory.body }}"
+              "{{ $chain.results.callOICIntegration.body }}"
             ]
           },
           "outcomes": {
-            "success": "saveRequestId"
+            "success": "assignOICResult"
           }
         },
-        "saveRequestId": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.advisoryRequestId": {
-              "source": "{{ $chain.results.extractRequestId }}",
-              "auto": "always"
-            }
-          },
-          "outcomes": {
-            "success": "pollAdvisory"
-          }
-        },
-        "pollAdvisory": {
-          "module": "vb/action/builtin/restAction",
-          "parameters": {
-            "endpoint": "BOMValidation/getAdvisory",
-            "uriParams": {
-              "finding_id": "{{ $page.variables.selectedFindingId }}"
-            }
-          },
-          "outcomes": {
-            "success": "parseAdvisory",
-            "failure": "advisoryError"
-          }
-        },
-        "parseAdvisory": {
-          "module": "vb/action/builtin/callModuleFunctionAction",
-          "parameters": {
-            "module": "[[ $functions ]]",
-            "functionName": "parseAdvisoryResponse",
-            "params": [
-              "{{ $chain.results.pollAdvisory.body }}"
-            ]
-          },
-          "outcomes": {
-            "success": "assignAdvisory"
-          }
-        },
-        "assignAdvisory": {
+        "assignOICResult": {
           "module": "vb/action/builtin/assignVariablesAction",
           "parameters": {
             "$page.variables.advisoryStatus": {
-              "source": "{{ $chain.results.parseAdvisory.status }}",
+              "source": "{{ $chain.results.parseOICResult.status }}",
               "auto": "always"
             },
             "$page.variables.advisoryText": {
-              "source": "{{ $chain.results.parseAdvisory.context }}",
+              "source": "{{ $chain.results.parseOICResult.context }}",
               "auto": "always"
             },
             "$page.variables.advisoryMitigation": {
-              "source": "{{ $chain.results.parseAdvisory.mitigation }}",
+              "source": "{{ $chain.results.parseOICResult.mitigation }}",
               "auto": "always"
             }
           }
@@ -434,7 +447,7 @@
               "source": "ERROR"
             },
             "$page.variables.advisoryText": {
-              "source": "Advisory generation failed. Please try again."
+              "source": "AI Advisory generation failed or timed out. Please check OIC integration logs."
             }
           }
         }

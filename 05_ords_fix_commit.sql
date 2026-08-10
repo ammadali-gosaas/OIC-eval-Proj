@@ -186,19 +186,24 @@ DECLARE
     v_item          JSON_OBJECT_T;
     v_bom_id        NUMBER;
 
-    v_org_code      VARCHAR2(10);
-    v_assembly_item VARCHAR2(100);
-    v_bill_seq_id   VARCHAR2(100);
-    v_struct_name   VARCHAR2(100);
-    v_bom_desc      VARCHAR2(500);
-    v_comp_item     VARCHAR2(100);
+    -- Track cleared BOMs per sync payload batch
+    TYPE t_bom_id_map IS TABLE OF BOOLEAN INDEX BY PLS_INTEGER;
+    v_cleared_boms  t_bom_id_map;
+
+    -- Widened buffers to prevent ORA-06502 on full multi-org syncs
+    v_org_code      VARCHAR2(100);
+    v_assembly_item VARCHAR2(250);
+    v_bill_seq_id   VARCHAR2(250);
+    v_struct_name   VARCHAR2(250);
+    v_bom_desc      VARCHAR2(4000);
+    v_comp_item     VARCHAR2(250);
     v_qty           NUMBER;
-    v_uom           VARCHAR2(10);
+    v_uom           VARCHAR2(50);
     v_op_seq        NUMBER;
-    v_item_class    VARCHAR2(100);
+    v_item_class    VARCHAR2(250);
     v_bom_level     NUMBER;
-    v_effectivity   VARCHAR2(100);
-    v_import_batch  VARCHAR2(100);
+    v_effectivity   VARCHAR2(250);
+    v_import_batch  VARCHAR2(250);
     v_count         NUMBER := 0;
 
     FUNCTION get_str(p_obj JSON_OBJECT_T, p_key VARCHAR2) RETURN VARCHAR2 IS
@@ -284,13 +289,31 @@ BEGIN
             RAISE_APPLICATION_ERROR(-20003, 'Missing organization_code or assembly_item_number in JSON item.');
         END IF;
 
-        -- 1. Insert or fetch parent BOM
+        -- 1. Insert or update parent BOM to UNVALIDATED state
         BEGIN
             SELECT bom_id INTO v_bom_id
               FROM boms
              WHERE organization_code = v_org_code
                AND item_number = v_assembly_item
                AND structure_name = v_struct_name;
+
+            -- Reset health score and status label for refreshed BOMs
+            UPDATE boms
+               SET description = NVL(v_bom_desc, description),
+                   item_class = NVL(v_item_class, item_class),
+                   health_score = NULL,
+                   status_label = 'UNVALIDATED',
+                   imported_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
+             WHERE bom_id = v_bom_id;
+
+            -- Clear stale findings and old components ONCE per BOM header in this payload
+            IF NOT v_cleared_boms.EXISTS(v_bom_id) THEN
+                DELETE FROM validation_findings 
+                 WHERE run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = v_bom_id);
+                DELETE FROM bom_components WHERE bom_id = v_bom_id;
+                v_cleared_boms(v_bom_id) := TRUE;
+            END IF;
+
         EXCEPTION
             WHEN NO_DATA_FOUND THEN
                 INSERT INTO boms (
@@ -300,13 +323,15 @@ BEGIN
                     import_batch_id, source_updated_at
                 ) VALUES (
                     v_org_code, v_assembly_item, v_struct_name,
-                    v_bom_desc, v_item_class, 100, 'HEALTHY', 
+                    v_bom_desc, v_item_class, NULL, 'UNVALIDATED', 
                     SYSTIMESTAMP AT TIME ZONE 'UTC', v_bill_seq_id, v_effectivity,
                     v_import_batch, SYSTIMESTAMP AT TIME ZONE 'UTC'
                 ) RETURNING bom_id INTO v_bom_id;
+
+                v_cleared_boms(v_bom_id) := TRUE;
         END;
 
-        -- 2. Insert component details if component item exists
+        -- 2. Insert component details
         IF v_comp_item IS NOT NULL THEN
             INSERT INTO bom_components (
                 bom_id, parent_item_number, component_item_number,
@@ -325,7 +350,6 @@ BEGIN
     COMMIT;
     :status_code := 201;
     
-    -- Explicitly output application/json HTTP header
     owa_util.mime_header('application/json', TRUE);
     htp.p('{"status":"success","inserted_count":' || v_count || '}');
 EXCEPTION
@@ -436,7 +460,7 @@ SELECT JSON_OBJECT(
        ) bom_detail_json FROM boms b WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
         ]'
     );
-    -- 2. Fix the Findings List endpoint (Used by VBCS UI & potentially OIC)
+
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
@@ -457,10 +481,7 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number,
  ORDER BY vf.created_at DESC
         #'
     );
-    
- 
 
- 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/refresh');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -694,7 +715,7 @@ BEGIN
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' INTO v_now FROM dual;
     SELECT health_score INTO v_score FROM boms WHERE bom_id = v_bom_id;
     
-    -- UPDATED: Only count findings from the most recent run
+    -- ONLY COUNT FINDINGS FROM THE MOST RECENT VALIDATION RUN
     SELECT COUNT(*) INTO v_finding_cnt 
       FROM validation_findings vf 
      WHERE vf.run_id = (SELECT MAX(run_id) FROM bom_runs WHERE bom_id = v_bom_id)
@@ -718,7 +739,6 @@ EXCEPTION
 END;
         ]'
     );
- 
 
     ORDS.DEFINE_PARAMETER(
         p_module_name        => 'bom_api',
@@ -1045,7 +1065,6 @@ SELECT job_name,
         #'
     );
 
-
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'rules/:rule_id');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -1118,8 +1137,7 @@ BEGIN
     ELSE
         COMMIT;
         :status_code := 200;
-    END IF;
-EXCEPTION 
+    END IF;EXCEPTION 
     WHEN OTHERS THEN 
         ROLLBACK; 
         :status_code := 400;

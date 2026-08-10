@@ -1,0 +1,15 @@
+{
+    "items": [
+        {
+            "job_name": "BOM_VAL_JOB_20260809_213128",
+            "enabled": "TRUE",
+            "state": "SCHEDULED",
+            "repeat_interval": "FREQ=DAILY; BYHOUR=02; BYMINUTE=33;",
+            "start_date": "2026-08-10T02:31:28+05:00",
+            "next_run_date": "2026-08-11T02:33:28+05:00"
+        }
+    ],
+    "first": {
+        "$ref": "http://172.105.152.7:8181/ords/bom/schedules"
+    }
+}

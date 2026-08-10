@@ -1008,4 +1008,3 @@ SHOW ERRORS PACKAGE bom_validation_pkg
 SHOW ERRORS PACKAGE BODY bom_validation_pkg
 
 PROMPT 02_database_validation_engine.sql complete
-

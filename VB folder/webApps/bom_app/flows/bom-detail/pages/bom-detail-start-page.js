@@ -1,4 +1,4 @@
-define(['ojs/ojarraytreedataprovider'], function(ArrayTreeDataProvider) {
+define(['ojs/ojarraydataprovider'], function(ArrayDataProvider) {
   'use strict';
 
   var PageModule = function PageModule() {};
@@ -13,82 +13,65 @@ define(['ojs/ojarraytreedataprovider'], function(ArrayTreeDataProvider) {
   };
 
   /**
+   * Helper to safely extract JSON object whether ORDS returns a string or parsed object
+   */
+  PageModule.prototype._extractDataPayload = function(responsePayload) {
+    if (!responsePayload) return null;
+    var data = responsePayload;
+    if (responsePayload.items && responsePayload.items.length > 0 && responsePayload.items[0].bom_detail_json) {
+      try {
+        var raw = responsePayload.items[0].bom_detail_json;
+        data = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      } catch (e) {
+        console.error("Failed to parse bom_detail_json:", e);
+        return null;
+      }
+    }
+    return data;
+  };
+
+  /**
    * Parses the getBomDetail API response into the bomData shape
    */
   PageModule.prototype.parseBomDetailResponse = function(responsePayload) {
-    if (!responsePayload) return this._emptyBomData();
+    var dataToParse = this._extractDataPayload(responsePayload) || {};
+    var item = dataToParse.bom || (dataToParse.bomId ? dataToParse : {});
 
-    var dataToParse = responsePayload;
-    
-    // Check if the payload is wrapped in the ORDS stringified 'bom_detail_json'
-    if (responsePayload.items && responsePayload.items.length > 0 && responsePayload.items[0].bom_detail_json) {
-      try {
-        dataToParse = JSON.parse(responsePayload.items[0].bom_detail_json);
-      } catch (e) {
-        console.error("Failed to parse bom_detail_json:", e);
-        return this._emptyBomData();
-      }
-    }
-
-    var item = {};
-    if (dataToParse.bom) {
-      item = dataToParse.bom;
-    } else if (dataToParse.bomId || dataToParse.bom_id || dataToParse.BOM_ID) {
-      item = dataToParse;
-    } else {
-      return this._emptyBomData();
-    }
-
-    // Map values safely
     return {
       bomId: item.bomId || item.bom_id || item.BOM_ID || '',
       billSequenceId: item.billSequenceId || item.bill_sequence_id || item.BILL_SEQUENCE_ID || '',
       orgCode: item.organizationCode || item.organization_code || item.ORGANIZATION_CODE || '',
-      itemNumber: item.itemNumber || item.item_number || item.ITEM_NUMBER || '',
+      itemNumber: item.itemNumber || item.item_number || item.ITEM_NUMBER || '—',
       structureName: item.structureName || item.structure_name || item.STRUCTURE_NAME || 'PRIMARY',
       description: item.description || item.bom_description || item.DESCRIPTION || '',
       effectivityControl: item.effectivityControl || item.effectivity_control || item.EFFECTIVITY_CONTROL || '',
       sourceUpdatedAt: item.sourceUpdatedAt || item.source_updated_at || item.SOURCE_UPDATED_AT || '',
       importBatchId: item.importBatchId || item.import_batch_id || item.IMPORT_BATCH_ID || '',
       importedAt: item.importedAt || item.imported_at || item.IMPORTED_AT || '',
-      healthScore: item.healthScore !== undefined ? item.healthScore : (item.health_score !== undefined ? item.health_score : 0),
-      statusLabel: item.statusLabel || item.status_label || item.STATUS_LABEL || item.status || ''
+      healthScore: item.healthScore !== undefined ? item.healthScore : (item.health_score !== undefined ? item.health_score : 100),
+      statusLabel: item.statusLabel || item.status_label || item.STATUS_LABEL || item.status || 'HEALTHY'
     };
   };
 
   /**
-   * Parses the components and matches findings to them
+   * Parses components response
    */
   PageModule.prototype.parseComponentsResponse = function(responsePayload) {
-    if (!responsePayload) return [];
+    var dataToParse = this._extractDataPayload(responsePayload);
+    if (!dataToParse || !dataToParse.components) return [];
 
-    var dataToParse = responsePayload;
-    if (responsePayload.items && responsePayload.items.length > 0 && responsePayload.items[0].bom_detail_json) {
-      try {
-        dataToParse = JSON.parse(responsePayload.items[0].bom_detail_json);
-      } catch (e) {
-        console.error("Failed to parse bom_detail_json in components:", e);
-        return [];
-      }
-    }
-
-    if (!dataToParse || !dataToParse.components) {
-      return [];
-    }
-    
     var findings = dataToParse.findings || [];
     var components = dataToParse.components;
-    
+
     return components.map(function(c) {
       var itemNum = c.componentItemNumber || c.component_item_number || '';
-      
-      // Match issues reliably using bomComponentId
-      var hasIssue = findings.some(function(f) { 
-        return f.bomComponentId === c.bomComponentId && (f.issueStatus || f.issue_status) !== 'IGNORED'; 
+      var hasIssue = findings.some(function(f) {
+        return (f.bomComponentId === c.bomComponentId || f.bom_component_id === c.bomComponentId) &&
+               (f.issueStatus || f.issue_status) !== 'IGNORED';
       });
-      
+
       return {
-        id: c.bomComponentId || c.bom_component_id || itemNum || Math.random().toString(),
+        id: String(c.bomComponentId || c.bom_component_id || itemNum || Math.random()),
         parentItemNumber: c.parentItemNumber || c.parent_item_number || '',
         level: c.bomLevel || c.bom_level || 1,
         itemNumber: itemNum,
@@ -97,43 +80,102 @@ define(['ojs/ojarraytreedataprovider'], function(ArrayTreeDataProvider) {
         uom: c.uomCode || c.uom_code || '',
         status: c.itemStatus || c.item_status || 'Active',
         hasIssue: hasIssue,
-        // NEW: Grab the path to build the tree reliably
         componentPath: c.componentPath || c.component_path || ''
       };
     });
   };
 
   /**
-   * Parses the findings into the score deduction table format
+   * Depth-First Hierarchy Data Provider
    */
-  PageModule.prototype.parseScoreDeductions = function(responsePayload) {
-    if (!responsePayload) return [];
-    
-    var dataToParse = responsePayload;
-    if (responsePayload.items && responsePayload.items.length > 0 && responsePayload.items[0].bom_detail_json) {
-      try {
-        dataToParse = JSON.parse(responsePayload.items[0].bom_detail_json);
-      } catch (e) {
-        return [];
+  PageModule.prototype.getTreeDataProvider = function(flatList) {
+    if (!flatList || flatList.length === 0) {
+      return new ArrayDataProvider([], { keyAttributes: 'id' });
+    }
+
+    var items = JSON.parse(JSON.stringify(flatList));
+
+    var pathMap = {};
+    var levelItemMap = {};
+
+    items.forEach(function(item) {
+      item.id = String(item.id);
+      if (item.componentPath) {
+        pathMap[item.componentPath] = item;
+      }
+      var key = item.level + '::' + item.itemNumber;
+      if (!levelItemMap[key]) {
+        levelItemMap[key] = item;
+      }
+    });
+
+    var roots = [];
+    items.forEach(function(item) {
+      var parent = null;
+
+      if (item.componentPath) {
+        var parts = item.componentPath.split('/');
+        if (parts.length > 2) {
+          parts.pop();
+          var parentPath = parts.join('/');
+          if (pathMap[parentPath]) {
+            parent = pathMap[parentPath];
+          }
+        }
+      }
+
+      if (!parent && item.level > 1 && item.parentItemNumber) {
+        var fallbackKey = (item.level - 1) + '::' + item.parentItemNumber;
+        if (levelItemMap[fallbackKey]) {
+          parent = levelItemMap[fallbackKey];
+        }
+      }
+
+      if (parent) {
+        if (!parent.children) parent.children = [];
+        parent.children.push(item);
+      } else {
+        roots.push(item);
+      }
+    });
+
+    var flattened = [];
+    function traverse(node, depth) {
+      var copy = Object.assign({}, node);
+      copy.displayLevel = depth;
+      delete copy.children;
+      flattened.push(copy);
+
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(function(child) {
+          traverse(child, depth + 1);
+        });
       }
     }
 
-    if (!dataToParse || !dataToParse.findings) {
-      return [];
-    }
-    
-    var findings = dataToParse.findings;
-    return findings.map(function(f) {
+    roots.forEach(function(root) {
+      traverse(root, root.level || 1);
+    });
+
+    var finalList = flattened.length > 0 ? flattened : items;
+    return new ArrayDataProvider(finalList, { keyAttributes: 'id' });
+  };
+
+  PageModule.prototype.parseScoreDeductions = function(responsePayload) {
+    var dataToParse = this._extractDataPayload(responsePayload);
+    if (!dataToParse || !dataToParse.findings || dataToParse.findings.length === 0) return [];
+
+    return dataToParse.findings.map(function(f) {
       var deduction = 0;
       var sev = (f.severity || '').toUpperCase();
       var status = (f.issueStatus || f.issue_status || 'OPEN').toUpperCase();
-      
-      if (status !== 'IGNORED') {
-        if (sev === 'CRITICAL') deduction = 20;
+
+      if (status === 'OPEN' || status === 'REVIEWED') {
+        if (sev === 'CRITICAL') deduction = 25;
         else if (sev === 'HIGH') deduction = 10;
         else if (sev === 'WARNING') deduction = 5;
       }
-      
+
       return {
         rule: f.ruleName || f.rule_name || f.ruleCode || f.rule_code || 'Unknown Rule',
         severity: sev || 'INFO',
@@ -143,239 +185,49 @@ define(['ojs/ojarraytreedataprovider'], function(ArrayTreeDataProvider) {
     }).filter(function(f) { return f.deduction > 0; });
   };
 
-  PageModule.prototype.getTreeDataProvider = function(flatList) {
-    if (!flatList || flatList.length === 0) {
-      return new ArrayTreeDataProvider([], { keyAttributes: 'id' });
-    }
-    
-    // 1. BULLETPROOF CACHE CHECK
-    var currentFirstId = flatList.length > 0 ? flatList[0].id : null;
-    if (this._cachedTreeProvider && 
-        this._cachedListLength === flatList.length && 
-        this._cachedFirstId === currentFirstId) {
-      return this._cachedTreeProvider;
-    }
-    
-    this._cachedListLength = flatList.length;
-    this._cachedFirstId = currentFirstId;
-    
-    // 2. THE FIX: Create a deep clone to strip Visual Builder Proxy locks
-    // This allows us to freely add the .children arrays without VB blocking it
-    var plainList = JSON.parse(JSON.stringify(flatList));
-    
-    var pathMap = {};
-    var roots = [];
-    
-    // 3. Map all items using their component paths
-    plainList.forEach(function(item) {
-      if (item.componentPath) {
-        pathMap[item.componentPath] = item;
-      }
-    });
-    
-    // 4. Build the hierarchy
-    plainList.forEach(function(item) {
-      var isRoot = true;
-      
-      if (item.componentPath) {
-        var pathParts = item.componentPath.split('/');
-        
-        // Length > 2 means it's a child of a subassembly (e.g., ASM/SUB/CMP)
-        if (pathParts.length > 2) {
-          pathParts.pop(); // Drop current item to get the parent path
-          var parentPath = pathParts.join('/');
-          
-          // If parent is found, inject this item into its children array
-          if (pathMap[parentPath]) {
-            if (!pathMap[parentPath].children) {
-              pathMap[parentPath].children = [];
-            }
-            pathMap[parentPath].children.push(item);
-            isRoot = false; // It has a parent, so it's not a root row
-          }
-        }
-      } else {
-        if (item.level > 1) isRoot = false;
-      }
-      
-      // If no parent was found, push it to the main top-level view
-      if (isRoot) {
-        roots.push(item);
-      }
-    });
-    
-    // 5. Initialize the Oracle JET tree provider with the un-proxied nested data
-    this._cachedTreeProvider = new ArrayTreeDataProvider(roots, { 
-      keyAttributes: 'id', 
-      childrenAttribute: 'children' 
-    });
-    
-    return this._cachedTreeProvider;
-  };
-  
-  /**
-   * Parses the findings into the score deduction table format
-   * Matches the PL/SQL engine: CRITICAL (-25), HIGH (-10), WARNING (-5)
-   */
-  /**
-   * Parses the findings into the score deduction table format
-   * Matches the PL/SQL engine: CRITICAL (-25), HIGH (-10), WARNING (-5)
-   */
-  PageModule.prototype.parseScoreDeductions = function(responsePayload) {
-    if (!responsePayload) return [];
-    
-    var dataToParse = responsePayload;
-    if (responsePayload.items && responsePayload.items.length > 0 && responsePayload.items[0].bom_detail_json) {
-      try {
-        dataToParse = JSON.parse(responsePayload.items[0].bom_detail_json);
-      } catch (e) {
-        return [];
-      }
-    }
-
-    if (!dataToParse || !dataToParse.findings || dataToParse.findings.length === 0) {
-      return [];
-    }
-    
-    var findings = dataToParse.findings;
-
-    // 1. Find the most recent run ID to filter out historical duplicates
-    var latestRunId = -1;
-    findings.forEach(function(f) {
-      if (f.runId && f.runId > latestRunId) {
-        latestRunId = f.runId;
-      }
-    });
-
-    // 2. Filter the list to ONLY include findings from the latest run
-    var latestFindings = findings.filter(function(f) {
-      return f.runId === latestRunId;
-    });
-    
-    // 3. Map the filtered findings to table rows
-    return latestFindings.map(function(f) {
-      var deduction = 0;
-      var sev = (f.severity || '').toUpperCase();
-      var status = (f.issueStatus || f.issue_status || 'OPEN').toUpperCase();
-      
-      // Only OPEN or REVIEWED statuses deduct points
-      if (status === 'OPEN' || status === 'REVIEWED') {
-        if (sev === 'CRITICAL') deduction = 25;
-        else if (sev === 'HIGH') deduction = 10;
-        else if (sev === 'WARNING') deduction = 5;
-      }
-      
-      return {
-        rule: f.ruleName || f.rule_name || f.ruleCode || f.rule_code || 'Unknown Rule',
-        severity: sev || 'INFO',
-        status: status,
-        deduction: deduction
-      };
-    }).filter(function(f) { 
-      // Only return rows that actually deducted points for the UI table
-      return f.deduction > 0; 
-    });
-  };
-
   PageModule.prototype._emptyBomData = function() {
     return {
       bomId: '', billSequenceId: '', orgCode: '', itemNumber: '—',
       structureName: '', description: '', effectivityControl: '',
       sourceUpdatedAt: '', importBatchId: '', importedAt: '',
-      healthScore: 0, statusLabel: ''
+      healthScore: 100, statusLabel: 'HEALTHY'
     };
   };
 
-  /**
-   * Parses the listBomRuns response into an array for the History tab.
-   */
   PageModule.prototype.parseRunsResponse = function(responsePayload) {
-    var items = [];
-    if (!responsePayload) return items;
-    if (Array.isArray(responsePayload)) {
-      items = responsePayload;
-    } else if (responsePayload.items && Array.isArray(responsePayload.items)) {
-      items = responsePayload.items;
-    }
-    return items;
-  };
-
-  /**
-   * Extracts the request_id from the createBomAdvisory response.
-   */
-  PageModule.prototype.extractAdvisoryRequestId = function(responsePayload) {
-    if (!responsePayload) return '';
-    if (responsePayload.request_id) return responsePayload.request_id;
-    if (responsePayload.requestId) return responsePayload.requestId;
-    if (responsePayload.items && responsePayload.items[0]) {
-      return responsePayload.items[0].request_id || responsePayload.items[0].requestId || '';
-    }
-    return '';
-  };
-
-  /**
-   * Parses the getAdvisory response into status/context/mitigation fields.
-   */
-  PageModule.prototype.parseAdvisoryResponse = function(responsePayload) {
-    var result = { status: 'NOT_REQUESTED', context: '', mitigation: '' };
-    if (!responsePayload) return result;
-
-    var item = responsePayload;
-    if (responsePayload.items && responsePayload.items[0]) {
-      item = responsePayload.items[0];
-    }
-
-    result.status = item.status || item.advisory_status || 'COMPLETED';
-    result.context = item.business_context || item.context || item.advisory_text || '';
-    result.mitigation = item.suggested_mitigation || item.mitigation || item.mitigation_action || '';
-    return result;
-  };
-
-  /**
-   * Parses findings into the auditTrailList format for the History tab
-   */
-  PageModule.prototype.parseAuditTrail = function(responsePayload) {
     if (!responsePayload) return [];
+    if (Array.isArray(responsePayload)) return responsePayload;
+    if (responsePayload.items && Array.isArray(responsePayload.items)) return responsePayload.items;
+    return [];
+  };
 
-    var dataToParse = responsePayload;
-    if (responsePayload.items && responsePayload.items.length > 0 && responsePayload.items[0].bom_detail_json) {
-      try {
-        dataToParse = JSON.parse(responsePayload.items[0].bom_detail_json);
-      } catch (e) {
-        return [];
-      }
-    }
+  PageModule.prototype.parseAuditTrail = function(responsePayload) {
+    var dataToParse = this._extractDataPayload(responsePayload);
+    if (!dataToParse) return [];
 
-    if (!dataToParse || !dataToParse.findings) {
-      return [];
-    }
+    var reviews = dataToParse.auditTrail || dataToParse.findings || [];
 
-    return dataToParse.findings.map(function(f) {
+    return reviews.map(function(r) {
+      var reviewTime = r.reviewedAt || r.reviewed_at || r.createdAt;
       return {
-        findingId: f.findingId || f.finding_id || '',
-        rule: f.ruleName || f.rule_name || f.ruleCode || f.rule_code || 'Validation Rule',
-        timestamp: f.createdAt ? new Date(f.createdAt).toLocaleString() : 'Recent',
-        oldStatus: 'OPEN',
-        newStatus: f.issueStatus || f.issue_status || 'OPEN',
-        user: f.reviewedBy || f.reviewed_by || 'System',
-        
-        // STRICTLY NO ACTUAL VALUE HERE! ONLY THE REAL COMMENT!
-        comment: f.reviewComment || f.review_comment || '' 
+        findingId: r.findingId || r.finding_id || '',
+        rule: r.ruleName || r.rule_name || r.ruleCode || r.rule_code || 'Validation Rule',
+        timestamp: reviewTime ? new Date(reviewTime).toLocaleString() : 'Recent',
+        oldStatus: r.oldStatus || r.old_status || 'OPEN',
+        newStatus: r.newStatus || r.new_status || r.issueStatus || r.issue_status || 'OPEN',
+        user: r.reviewedBy || r.reviewed_by || 'System',
+        comment: r.reviewComment || r.review_comment || ''
       };
     });
   };
 
-  // Checks if the findings API response returned zero items
   PageModule.prototype.checkIfEmpty = function(response) {
     if (!response) return true;
     var body = response.body || response;
     var items = body.items || body;
     return !Array.isArray(items) || items.length === 0;
   };
-  /**
-   * Fetches the most recent advisory from getBomsBomIdAdvisories
-   * and extracts ai_summary and ai_suggested_action
-   */
+
   PageModule.prototype.parseLatestBomAdvisory = function(responsePayload) {
     var result = {
       status: 'NOT_REQUESTED',
@@ -384,60 +236,71 @@ define(['ojs/ojarraytreedataprovider'], function(ArrayTreeDataProvider) {
     };
 
     if (!responsePayload) return result;
-
     var items = responsePayload.items || (Array.isArray(responsePayload) ? responsePayload : []);
     if (items.length === 0) return result;
 
-    // Top item is the most recent advisory because SQL uses ORDER BY generated_at DESC
     var latest = items[0];
     result.status = latest.ai_status || latest.aiStatus || 'COMPLETED';
 
     var summary = latest.ai_summary || latest.aiSummary || '';
     var suggested = latest.ai_suggested_action || latest.aiSuggestedAction || '';
 
-    // Safely unwrap nested OIC stringified JSON if present
     if (typeof summary === 'string' && summary.trim().startsWith('{')) {
       try {
         var parsed = JSON.parse(summary);
         summary = parsed.ai_summary || summary;
         suggested = parsed.ai_suggested_action || suggested;
-      } catch (e) {
-        console.log("Advisory summary is standard text.");
-      }
+      } catch (e) {}
     }
 
     result.context = summary;
     result.mitigation = suggested;
-
     return result;
   };
-  /**
-   * Parses the direct response from the OIC Advisory Service.
-   */
-  /**
-   * Parses the direct response from the OIC Advisory Service.
-   */
-  PageModule.prototype.parseOICResponse = function(responsePayload) {
-    var result = { status: 'COMPLETED', context: '', mitigation: '' };
-    
-    if (!responsePayload) {
-        result.status = 'ERROR';
-        result.context = 'Received empty response from OIC.';
-        return result;
+
+  PageModule.prototype.parseLatestFindingAdvisory = function(responsePayload) {
+    var result = { status: 'NOT_REQUESTED', context: '', mitigation: '' };
+    if (!responsePayload) return result;
+
+    var items = responsePayload.items || (Array.isArray(responsePayload) ? responsePayload : []);
+    if (items.length === 0) return result;
+
+    var latest = items[0];
+    result.status = latest.ai_status || latest.aiStatus || 'COMPLETED';
+
+    var summary = latest.ai_summary || latest.aiSummary || '';
+    var suggested = latest.ai_suggested_action || latest.aiSuggestedAction || '';
+
+    if (typeof summary === 'string' && summary.trim().startsWith('{')) {
+      try {
+        var parsed = JSON.parse(summary);
+        summary = parsed.ai_summary || summary;
+        suggested = parsed.ai_suggested_action || suggested;
+      } catch (e) {}
     }
 
-    // Safely grab the raw values from OIC
+    result.context = summary;
+    result.mitigation = suggested;
+    return result;
+  };
+
+  PageModule.prototype.parseOICResponse = function(responsePayload) {
+    var result = { status: 'COMPLETED', context: '', mitigation: '' };
+    if (!responsePayload) {
+      result.status = 'ERROR';
+      result.context = 'Received empty response from OIC.';
+      return result;
+    }
+
     var summaryRaw = responsePayload.ai_summary || responsePayload.aiSummary || '';
     var suggestedRaw = responsePayload.ai_suggested_action || responsePayload.aiSuggestedAction || '';
 
-    // Handle VB wrapper quirks (sometimes it puts the body inside items[0])
     if (responsePayload.items && responsePayload.items.length > 0) {
-        summaryRaw = responsePayload.items[0].ai_summary || summaryRaw;
-        suggestedRaw = responsePayload.items[0].ai_suggested_action || suggestedRaw;
+      summaryRaw = responsePayload.items[0].ai_summary || summaryRaw;
+      suggestedRaw = responsePayload.items[0].ai_suggested_action || suggestedRaw;
     }
 
     try {
-      // If OIC stringified the JSON, safely parse it
       if (typeof summaryRaw === 'string' && summaryRaw.trim().startsWith('{')) {
         var parsed = JSON.parse(summaryRaw);
         result.context = parsed.ai_summary || summaryRaw;
@@ -447,17 +310,97 @@ define(['ojs/ojarraytreedataprovider'], function(ArrayTreeDataProvider) {
         result.mitigation = suggestedRaw;
       }
     } catch (e) {
-      console.error("Safely caught parsing error:", e);
       result.context = summaryRaw;
       result.mitigation = suggestedRaw;
     }
-    
-    // Fallback if parsing resulted in empty text
+
     if (!result.context || result.context.trim() === '') {
-         result.context = "Advisory generated but returned no text. Check OIC logs.";
+      result.context = "Advisory generated but returned no text. Check OIC logs.";
     }
 
     return result;
   };
+
+  PageModule.prototype.parseFindingAdvisoryResponse = function(responsePayload) {
+    return this.parseOICResponse(responsePayload);
+  };
+
+  PageModule.prototype.formatAdvisoryText = function(text) {
+    if (!text) return '';
+    return text
+      .replace(/\r\n/g, '\n')
+      .replace(/^[ \t]+/gm, '')
+      .replace(/(?<![\w-])([1-9]\d?[\.\)])\s+/g, function(match, listNum, offset) {
+        return (offset === 0) ? listNum + ' ' : '\n\n' + listNum + ' ';
+      })
+      .trim();
+  };
+  
+  /**
+   * Extracts the specific component item number where the violation occurred
+   */
+  PageModule.prototype.getFindingComponentItemNumber = function(data) {
+    if (!data) return '—';
+
+    // Direct field check
+    if (data.component_item_number) return data.component_item_number;
+    if (data.componentItemNumber) return data.componentItemNumber;
+
+    // Extract from evidence object / evidence_json string
+    var ev = data.evidence_json || data.evidence;
+    if (ev) {
+      if (typeof ev === 'string') {
+        try {
+          ev = JSON.parse(ev);
+        } catch (e) {}
+      }
+      if (typeof ev === 'object' && ev !== null) {
+        if (ev.componentItemNumber) return ev.componentItemNumber;
+        if (ev.component_item_number) return ev.component_item_number;
+      }
+    }
+
+    // Fallback to top-level assembly item number
+    return data.item_number || data.itemNumber || '—';
+  };
+  /**
+   * Extracts the full component hierarchy path for a finding
+   */
+  PageModule.prototype.getFindingComponentPath = function(data) {
+    if (!data) return '—';
+
+    // 1. Direct path fields
+    if (data.component_path) return data.component_path;
+    if (data.componentPath) return data.componentPath;
+
+    // 2. Extract path from evidence object / evidence_json
+    var ev = data.evidence_json || data.evidence;
+    if (ev) {
+      if (typeof ev === 'string') {
+        try { ev = JSON.parse(ev); } catch (e) {}
+      }
+      if (typeof ev === 'object' && ev !== null) {
+        if (ev.componentPath) return ev.componentPath;
+        if (ev.component_path) return ev.component_path;
+
+        // Strip leading arrows/spaces if extracting from cyclePath
+        if (ev.cyclePath) {
+          return ev.cyclePath.replace(/^\s*->\s*/, '').replace(/\s*->\s*/g, '/');
+        }
+
+        // Construct clean path directly without "..."
+        if (ev.bomItemNumber && ev.componentItemNumber) {
+          if (ev.parentItemNumber && ev.parentItemNumber !== ev.bomItemNumber) {
+            return ev.bomItemNumber + '/' + ev.parentItemNumber + '/' + ev.componentItemNumber;
+          }
+          return ev.bomItemNumber + '/' + ev.componentItemNumber;
+        }
+      }
+    }
+
+    // 3. Fallback to top-level assembly item number
+    return data.item_number || data.itemNumber || '—';
+  };
+
   return PageModule;
 });

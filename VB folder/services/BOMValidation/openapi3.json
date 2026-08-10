@@ -654,6 +654,30 @@
                         "description": "Finding not found"
                     }
                 }
+            },
+            "get": {
+                "operationId": "getFindingAdvisories",
+                "responses": {
+                    "default": {
+                        "description": "Response for default",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetFindingsFinding_idAdvisories"
+                                },
+                                "examples": {
+                                    "vb": {
+                                        "summary": "Example stored by VB User",
+                                        "externalValue": "./examples/getFindingAdvisories/response_default_application_json_vb.json"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-vb": {
+                    "actionHint": "getMany"
+                }
             }
         },
         "/advisories/{requestId}": {
@@ -845,6 +869,30 @@
                     "400": {
                         "description": "Job creation failed"
                     }
+                }
+            },
+            "get": {
+                "operationId": "getSchedules",
+                "responses": {
+                    "default": {
+                        "description": "Response for default",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GetSchedules"
+                                },
+                                "examples": {
+                                    "vb": {
+                                        "summary": "Example stored by VB User",
+                                        "externalValue": "./examples/getSchedules/response_default_application_json_vb.json"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-vb": {
+                    "actionHint": "getMany"
                 }
             }
         },
@@ -1527,6 +1575,54 @@
                     "items": {
                         "type": "array",
                         "items": {}
+                    }
+                }
+            },
+            "GetFindingsFinding_idAdvisories": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                }
+            },
+            "GetSchedules": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "job_name": {
+                                    "type": "string"
+                                },
+                                "enabled": {
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "type": "string"
+                                },
+                                "repeat_interval": {
+                                    "type": "string"
+                                },
+                                "start_date": {
+                                    "type": "string"
+                                },
+                                "next_run_date": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "first": {
+                        "type": "object",
+                        "properties": {
+                            "$ref": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
