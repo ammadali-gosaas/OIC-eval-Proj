@@ -1,3 +1,13 @@
+<oj-bind-if test="[[ !$application.functions.hasPermission($application.variables.currentRole, 'logs') ]]">
+  <div class="p-6 md:p-8 bg-[#f8fafc] min-h-screen font-sans w-full flex items-center justify-center">
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-10 text-center max-w-lg">
+      <h2 class="text-3xl font-black text-slate-900 mb-3">Integration Logs Restricted</h2>
+      <p class="text-slate-600 text-lg font-medium">Administrator active role capability is required to view raw redacted import, validation, and AI diagnostic payloads.</p>
+    </div>
+  </div>
+</oj-bind-if>
+
+<oj-bind-if test="[[ $application.functions.hasPermission($application.variables.currentRole, 'logs') ]]">
 <div class="p-6 md:p-8 space-y-6 bg-[#f8fafc] text-base text-slate-800 min-h-screen font-sans w-full">
   
   <!-- Page Header -->
@@ -62,3 +72,4 @@
     </div>
   </div>
 </div>
+</oj-bind-if>

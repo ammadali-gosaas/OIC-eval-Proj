@@ -15,6 +15,19 @@
       <oj-bind-text value="[[ $application.user.fullName ]]"></oj-bind-text>
     </div>
   </div>
+  <!-- Active role switcher: gates restricted actions (Run validation, Logs, rule management) across the app -->
+  <div class="oj-sm-margin-4x-horizontal oj-sm-margin-4x-vertical">
+    <div class="oj-typography-body-sm oj-text-color-secondary oj-sm-margin-1x-bottom">Current Role</div>
+    <oj-buttonset-one value="{{ $application.variables.currentRole }}"
+      class="oj-choice-direction-row">
+      <oj-option value="Administrator"><span>Administrator</span></oj-option>
+      <oj-option value="Business Reviewer"><span>Business Reviewer</span></oj-option>
+    </oj-buttonset-one>
+    <div class="oj-typography-body-xs oj-text-color-secondary oj-sm-margin-1x-top">
+      <oj-bind-text value="[[ $application.functions.getRoleNote($application.variables.currentRole) ]]"></oj-bind-text>
+    </div>
+  </div>
+
   <oj-navigation-list  on-click="[[$application.responsive.smOnly ? $fragment.functions.closeDrawer : undefined]]"
                        on-selection-changed="[[$listeners.onNavigation]]" data="[[ $application.variables.navigationADP ]]"
                        selection="{{ $variables.currentFlow }}">

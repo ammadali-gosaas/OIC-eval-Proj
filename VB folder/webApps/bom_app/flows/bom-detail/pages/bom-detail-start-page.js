@@ -201,22 +201,56 @@ define(['ojs/ojarraydataprovider'], function(ArrayDataProvider) {
     return [];
   };
 
-  PageModule.prototype.parseAuditTrail = function(responsePayload) {
+  PageModule.prototype.parseAuditTrail = function(responsePayload, allFindingsPayload) {
     var dataToParse = this._extractDataPayload(responsePayload);
-    if (!dataToParse) return [];
+    var auditTrail = (dataToParse && dataToParse.auditTrail) ? dataToParse.auditTrail : null;
 
-    var reviews = dataToParse.auditTrail || dataToParse.findings || [];
+    // 1. If explicit status review comments exist in database auditTrail, use them
+    if (auditTrail && Array.isArray(auditTrail) && auditTrail.length > 0) {
+      return auditTrail.map(function(r) {
+        return {
+          findingId: r.findingId || r.finding_id || '',
+          rule: r.ruleName || r.rule_name || r.ruleCode || r.rule_code || 'Validation Rule',
+          timestamp: r.reviewedAt || r.reviewed_at ? new Date(r.reviewedAt || r.reviewed_at).toLocaleString() : 'Recent',
+          oldStatus: r.oldStatus || r.old_status || 'OPEN',
+          newStatus: r.newStatus || r.new_status || 'OPEN',
+          user: r.reviewedBy || r.reviewed_by || 'System',
+          comment: r.reviewComment || r.review_comment || ''
+        };
+      });
+    }
 
-    return reviews.map(function(r) {
-      var reviewTime = r.reviewedAt || r.reviewed_at || r.createdAt;
+    // 2. Unpack ALL findings across ALL historical runs
+    var list = [];
+    if (allFindingsPayload) {
+      if (Array.isArray(allFindingsPayload)) {
+        list = allFindingsPayload;
+      } else if (allFindingsPayload.items && Array.isArray(allFindingsPayload.items)) {
+        list = allFindingsPayload.items;
+      } else if (typeof allFindingsPayload === 'string') {
+        try {
+          var parsed = JSON.parse(allFindingsPayload);
+          list = parsed.items || (Array.isArray(parsed) ? parsed : []);
+        } catch (e) {}
+      }
+    }
+
+    // 3. Fallback to latest run findings only if list is empty
+    if (list.length === 0 && dataToParse && dataToParse.findings) {
+      list = dataToParse.findings;
+    }
+
+    return list.map(function(r) {
+      var reviewTime = r.created_at || r.createdAt || r.reviewed_at || r.reviewedAt;
       return {
-        findingId: r.findingId || r.finding_id || '',
-        rule: r.ruleName || r.rule_name || r.ruleCode || r.rule_code || 'Validation Rule',
+        findingId: r.finding_id || r.findingId || '',
+        runId: r.run_id || r.runId || '', // <-- Added runId mapping
+        rule: r.rule_name || r.ruleName || r.rule_code || r.ruleCode || 'Validation Rule',
         timestamp: reviewTime ? new Date(reviewTime).toLocaleString() : 'Recent',
-        oldStatus: r.oldStatus || r.old_status || 'OPEN',
-        newStatus: r.newStatus || r.new_status || r.issueStatus || r.issue_status || 'OPEN',
-        user: r.reviewedBy || r.reviewed_by || 'System',
-        comment: r.reviewComment || r.review_comment || ''
+        oldStatus: r.old_status || r.oldStatus || 'OPEN',
+        newStatus: r.issue_status || r.issueStatus || r.new_status || r.newStatus || 'OPEN',
+        user: r.reviewed_by || r.reviewedBy || 'System',
+        comment: r.review_comment || r.reviewComment || ''
       };
     });
   };
@@ -331,7 +365,7 @@ define(['ojs/ojarraydataprovider'], function(ArrayDataProvider) {
       .replace(/\r\n/g, '\n')
       .replace(/^[ \t]+/gm, '')
       .replace(/(?<![\w-])([1-9]\d?[\.\)])\s+/g, function(match, listNum, offset) {
-        return (offset === 0) ? listNum + ' ' : '\n\n' + listNum + ' ';
+        return (offset === 0) ? listNum + ' ' : '\n' + listNum + ' ';
       })
       .trim();
   };
@@ -400,6 +434,25 @@ define(['ojs/ojarraydataprovider'], function(ArrayDataProvider) {
 
     // 3. Fallback to top-level assembly item number
     return data.item_number || data.itemNumber || '—';
+  };
+
+
+/**
+   * Safely parses evidence_json into a structured object for template rendering
+   */
+  PageModule.prototype.getParsedEvidence = function(data) {
+    if (!data) return null;
+    var ev = data.evidence_json || data.evidence;
+    if (!ev) return null;
+
+    if (typeof ev === 'string') {
+      try {
+        ev = JSON.parse(ev);
+      } catch (e) {
+        return null;
+      }
+    }
+    return typeof ev === 'object' && ev !== null ? ev : null;
   };
 
   return PageModule;

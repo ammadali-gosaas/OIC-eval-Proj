@@ -7,15 +7,19 @@
       <p style="color: #475569; margin: 0.25rem 0 0 0; font-size: 0.9375rem; font-weight: 500;">Core metrics, risky BOMs, and open issues.</p>
     </div>
     
-    <!-- REFRESH PLM DATA BUTTON -->
-    <button on-click="[[$listeners.triggerRefreshPLM]]" 
-            :disabled="[[$variables.isRefreshing]]"
-            style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; background-color: #2563eb; color: #ffffff; border: none; border-radius: 10px; font-weight: 700; font-size: 0.875rem; cursor: pointer; box-shadow: 0 2px 4px rgba(37,99,235,0.2); transition: all 0.2s;">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-      </svg>
-      <oj-bind-text value="[[$variables.isRefreshing ? 'Refreshing Data...' : 'Refresh Data']]"></oj-bind-text>
-    </button>
+    <!-- REFRESH PLM DATA BUTTON (DISABLED + BLURRED FOR BUSINESS REVIEWERS) -->
+  <button on-click="[[$listeners.triggerRefreshPLM]]" 
+      :disabled="[[$variables.isRefreshing || $application.variables.currentRole !== 'Administrator']]"
+      :title="[[$application.variables.currentRole === 'Administrator' ? '' : 'Administrator role is required to refresh PLM data.']]"
+      :style.opacity="[[$application.variables.currentRole === 'Administrator' ? '1' : '0.45']]"
+      :style.filter="[[$application.variables.currentRole === 'Administrator' ? 'none' : 'blur(0.5px)']]"
+      :style.cursor="[[$application.variables.currentRole === 'Administrator' ? 'pointer' : 'not-allowed']]"
+      style="display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1rem; background-color: #2563eb; color: #ffffff; border: none; border-radius: 10px; font-weight: 700; font-size: 0.875rem; box-shadow: 0 2px 4px rgba(37,99,235,0.2); transition: all 0.2s;">
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+    </svg>
+    <oj-bind-text value="[[$variables.isRefreshing ? 'Refreshing Data...' : 'Refresh Data']]"></oj-bind-text>
+  </button>
   </div>
 
   <!-- Row 1: 3-Column Executive Grid -->

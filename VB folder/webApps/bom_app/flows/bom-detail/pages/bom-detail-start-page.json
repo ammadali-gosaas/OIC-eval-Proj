@@ -2,9 +2,10 @@
   "title": "BOM Detail",
   "description": "Dynamic BOM Detail Page — fetches live data from BOMValidation API",
   "variables": {
-    "bomId": {
+"bomId": {
       "type": "string",
       "input": "fromCaller",
+      "url": "parameter",
       "defaultValue": ""
     },
     "selectedTab": {
@@ -127,7 +128,7 @@
       }
     },
     "loadBomDetailChain": {
-      "description": "Fetch BOM header data from BOMValidation/getBomDetail using bomId",
+      "description": "Fetch BOM header data, components, score deductions, all findings for audit, run history, and advisories",
       "variables": {
         "bomId": {
           "type": "string",
@@ -221,7 +222,20 @@
             }
           },
           "outcomes": {
-            "success": "parseAuditTrail"
+            "success": "callGetAllFindings"
+          }
+        },
+        "callGetAllFindings": {
+          "module": "vb/action/builtin/restAction",
+          "parameters": {
+            "endpoint": "BOMValidation/listFindings",
+            "queryParams": {
+              "bom_id": "{{ $page.variables.bomId }}"
+            }
+          },
+          "outcomes": {
+            "success": "parseAuditTrail",
+            "failure": "parseAuditTrail"
           }
         },
         "parseAuditTrail": {
@@ -230,7 +244,8 @@
             "module": "[[ $functions ]]",
             "functionName": "parseAuditTrail",
             "params": [
-              "{{ $chain.results.callGetBomDetail.body }}"
+              "{{ $chain.results.callGetBomDetail.body }}",
+              "{{ $chain.results.callGetAllFindings ? $chain.results.callGetAllFindings.body : null }}"
             ]
           },
           "outcomes": {

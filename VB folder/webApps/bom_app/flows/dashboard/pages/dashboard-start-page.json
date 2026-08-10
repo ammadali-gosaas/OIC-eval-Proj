@@ -117,8 +117,27 @@
   "chains": {
     "refreshPLMChain": {
       "description": "Triggers PLM Data Ingestion directly in OIC for organization EVP and reloads dashboard metrics",
-      "root": "setRefreshingTrue",
+      "root": "checkRunPermission",
       "actions": {
+        "checkRunPermission": {
+  "module": "vb/action/builtin/ifAction",
+  "parameters": {
+    "condition": "[[ $application.functions.hasPermission($application.variables.currentRole, 'run') ]]"
+  },
+  "outcomes": {
+    "true": "setRefreshingTrue",
+    "false": "blockRefresh"
+  }
+},
+"blockRefresh": {
+  "module": "vb/action/builtin/fireNotificationEventAction",
+  "parameters": {
+    "target": "leaf",
+    "summary": "Administrator role is required to refresh PLM data.",
+    "type": "error",
+    "displayMode": "transient"
+  }
+},
         "setRefreshingTrue": {
           "module": "vb/action/builtin/assignVariablesAction",
           "parameters": {
@@ -135,7 +154,7 @@
           "parameters": {
             "endpoint": "PLM_Integ_Data_Ingest/postRefreshPlm",
             "body": {
-              "organizationCode": "GS01"
+              "organizationCode": ""
             }
           },
           "outcomes": {
