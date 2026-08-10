@@ -365,7 +365,8 @@ PROMPT Creating BOM_VALIDATION_PKG
 CREATE OR REPLACE PACKAGE bom_validation_pkg AS
     PROCEDURE run_full_validation(
         p_bom_id       NUMBER,
-        p_requested_by VARCHAR2
+        p_requested_by VARCHAR2,
+        p_trigger_type VARCHAR2 DEFAULT 'ON_DEMAND'
     );
 END bom_validation_pkg;
 /
@@ -454,7 +455,8 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
 
     PROCEDURE run_full_validation(
         p_bom_id       NUMBER,
-        p_requested_by VARCHAR2
+        p_requested_by VARCHAR2,
+        p_trigger_type VARCHAR2 DEFAULT 'ON_DEMAND'
     ) IS
         v_run_id          bom_runs.run_id%TYPE;
         v_correlation_id  bom_runs.correlation_id%TYPE;
@@ -524,7 +526,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
         ) VALUES (
             p_bom_id,
             'VALIDATION',
-            'ON_DEMAND',
+            NVL(p_trigger_type, 'ON_DEMAND'),
             'RUNNING',
             'N/A',
             'RUN_FULL_VALIDATION:' || p_bom_id || ':' || TO_CHAR(v_started_at, 'YYYYMMDDHH24MISSFF6'),
@@ -1006,3 +1008,4 @@ SHOW ERRORS PACKAGE bom_validation_pkg
 SHOW ERRORS PACKAGE BODY bom_validation_pkg
 
 PROMPT 02_database_validation_engine.sql complete
+

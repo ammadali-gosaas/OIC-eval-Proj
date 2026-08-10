@@ -350,7 +350,6 @@ END;
     );
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id');
-    -- 1. Fix the main BOM detail endpoint (Used by OIC)
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
         p_pattern        => 'boms/:bom_id',
@@ -359,33 +358,84 @@ END;
         p_items_per_page => 0,
         p_source         => q'[
 SELECT JSON_OBJECT(
-           'bom' VALUE JSON_OBJECT('bomId' VALUE b.bom_id, 'billSequenceId' VALUE b.bill_sequence_id, 'organizationCode' VALUE b.organization_code, 'itemNumber' VALUE b.item_number, 'structureName' VALUE b.structure_name, 'description' VALUE b.description, 'effectivityControl' VALUE b.effectivity_control, 'sourceUpdatedAt' VALUE TO_CHAR(b.source_updated_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'), 'importBatchId' VALUE b.import_batch_id, 'importedAt' VALUE TO_CHAR(b.imported_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'), 'itemClass' VALUE b.item_class, 'healthScore' VALUE b.health_score, 'statusLabel' VALUE b.status_label),
-           'components' VALUE (SELECT JSON_ARRAYAGG(JSON_OBJECT('bomComponentId' VALUE c.bom_component_id, 'componentSequenceId' VALUE c.component_sequence_id, 'parentItemNumber' VALUE c.parent_item_number, 'componentItemNumber' VALUE c.component_item_number, 'componentItemClass' VALUE c.component_item_class, 'quantity' VALUE c.quantity, 'uomCode' VALUE c.uom_code, 'itemSequenceNumber' VALUE c.item_sequence_number, 'operationSequence' VALUE c.operation_sequence, 'itemStatus' VALUE c.item_status, 'bomLevel' VALUE c.bom_level, 'componentPath' VALUE c.component_path, 'anomalyMinQuantity' VALUE c.anomaly_min_quantity, 'anomalyMaxQuantity' VALUE c.anomaly_max_quantity) ORDER BY c.bom_level, c.item_sequence_number, c.bom_component_id RETURNING CLOB) FROM bom_components c WHERE c.bom_id = b.bom_id),
-           'findings' VALUE (SELECT JSON_ARRAYAGG(JSON_OBJECT(
-               'findingId' VALUE vf.finding_id, 
-               'runId' VALUE vf.run_id, 
-               'bomComponentId' VALUE vf.bom_component_id, 
-               'ruleCode' VALUE vr.rule_code, 
-               'ruleName' VALUE vr.rule_name, 
-               'severity' VALUE vr.severity, 
-               'findingKey' VALUE vf.finding_key, 
-               'issueStatus' VALUE vf.issue_status, 
-               'actualValue' VALUE vf.actual_value, 
-               'expectedValue' VALUE vf.expected_value, 
-               'evidence' VALUE vf.evidence_json FORMAT JSON, 
-               'createdAt' VALUE TO_CHAR(vf.created_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
-           ) ORDER BY vf.created_at DESC, vf.finding_id DESC RETURNING CLOB) 
-           FROM bom_runs br 
-           JOIN validation_findings vf ON vf.run_id = br.run_id 
-           JOIN validation_rules vr ON vr.rule_id = vf.rule_id 
-           WHERE br.bom_id = b.bom_id
-             AND br.run_id = (SELECT MAX(run_id) FROM bom_runs WHERE bom_id = b.bom_id AND run_kind = 'VALIDATION')
-             AND vf.issue_status IN ('OPEN', 'REVIEWED'))
+           'bom' VALUE JSON_OBJECT(
+               'bomId' VALUE b.bom_id, 
+               'billSequenceId' VALUE b.bill_sequence_id, 
+               'organizationCode' VALUE b.organization_code, 
+               'itemNumber' VALUE b.item_number, 
+               'structureName' VALUE b.structure_name, 
+               'description' VALUE b.description, 
+               'effectivityControl' VALUE b.effectivity_control, 
+               'sourceUpdatedAt' VALUE TO_CHAR(b.source_updated_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'), 
+               'importBatchId' VALUE b.import_batch_id, 
+               'importedAt' VALUE TO_CHAR(b.imported_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'), 
+               'itemClass' VALUE b.item_class, 
+               'healthScore' VALUE b.health_score, 
+               'statusLabel' VALUE b.status_label
+           ),
+           'components' VALUE (
+               SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                   'bomComponentId' VALUE c.bom_component_id, 
+                   'componentSequenceId' VALUE c.component_sequence_id, 
+                   'parentItemNumber' VALUE c.parent_item_number, 
+                   'componentItemNumber' VALUE c.component_item_number, 
+                   'componentItemClass' VALUE c.component_item_class, 
+                   'quantity' VALUE c.quantity, 
+                   'uomCode' VALUE c.uom_code, 
+                   'itemSequenceNumber' VALUE c.item_sequence_number, 
+                   'operationSequence' VALUE c.operation_sequence, 
+                   'itemStatus' VALUE c.item_status, 
+                   'bomLevel' VALUE c.bom_level, 
+                   'componentPath' VALUE c.component_path, 
+                   'anomalyMinQuantity' VALUE c.anomaly_min_quantity, 
+                   'anomalyMaxQuantity' VALUE c.anomaly_max_quantity
+               ) ORDER BY c.bom_level, c.item_sequence_number, c.bom_component_id RETURNING CLOB) 
+               FROM bom_components c 
+               WHERE c.bom_id = b.bom_id
+           ),
+           'findings' VALUE (
+               SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                   'findingId' VALUE vf.finding_id, 
+                   'runId' VALUE vf.run_id, 
+                   'bomComponentId' VALUE vf.bom_component_id, 
+                   'ruleCode' VALUE vr.rule_code, 
+                   'ruleName' VALUE vr.rule_name, 
+                   'severity' VALUE vr.severity, 
+                   'findingKey' VALUE vf.finding_key, 
+                   'issueStatus' VALUE vf.issue_status, 
+                   'actualValue' VALUE vf.actual_value, 
+                   'expectedValue' VALUE vf.expected_value, 
+                   'evidence' VALUE vf.evidence_json FORMAT JSON, 
+                   'createdAt' VALUE TO_CHAR(vf.created_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+               ) ORDER BY vf.created_at DESC, vf.finding_id DESC RETURNING CLOB) 
+               FROM bom_runs br 
+               JOIN validation_findings vf ON vf.run_id = br.run_id 
+               JOIN validation_rules vr ON vr.rule_id = vf.rule_id 
+               WHERE br.bom_id = b.bom_id
+                 AND br.run_id = (SELECT MAX(run_id) FROM bom_runs WHERE bom_id = b.bom_id AND run_kind = 'VALIDATION')
+                 AND vf.issue_status IN ('OPEN', 'REVIEWED')
+           ),
+           'auditTrail' VALUE (
+               SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                   'findingId'     VALUE fr.finding_id,
+                   'ruleName'      VALUE vr.rule_name,
+                   'ruleCode'      VALUE vr.rule_code,
+                   'oldStatus'     VALUE fr.old_status,
+                   'newStatus'     VALUE fr.new_status,
+                   'reviewComment' VALUE fr.review_comment,
+                   'reviewedBy'    VALUE fr.reviewed_by,
+                   'reviewedAt'    VALUE TO_CHAR(fr.reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+               ) ORDER BY fr.reviewed_at DESC RETURNING CLOB)
+               FROM finding_reviews fr
+               JOIN validation_findings vf ON vf.finding_id = fr.finding_id
+               JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+               JOIN bom_runs br ON br.run_id = vf.run_id
+               WHERE br.bom_id = b.bom_id
+           )
            RETURNING CLOB
        ) bom_detail_json FROM boms b WHERE b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
         ]'
     );
-
     -- 2. Fix the Findings List endpoint (Used by VBCS UI & potentially OIC)
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings');
     ORDS.DEFINE_HANDLER(
@@ -902,42 +952,66 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
         p_source_type   => ORDS.source_type_plsql,
         p_mimes_allowed => 'application/json',
         p_source        => q'#
-    DECLARE
-        v_time     VARCHAR2(10) := :time;
-        v_interval VARCHAR2(20) := :interval;
-        v_job_name VARCHAR2(100);
-        v_sql      VARCHAR2(4000);
-        v_freq     VARCHAR2(50);
-    BEGIN
-        v_job_name := 'BOM_VAL_JOB_' || TO_CHAR(SYSDATE, 'YYYYMMDD_HH24MISS');
+DECLARE
+    v_body     CLOB := :body_text;
+    v_time     VARCHAR2(10) := :time;
+    v_interval VARCHAR2(20) := :interval;
+    v_job_name VARCHAR2(100);
+    v_sql      VARCHAR2(4000);
+    v_freq     VARCHAR2(50);
+    v_hour_str VARCHAR2(10);
+    v_min_str  VARCHAR2(10);
+BEGIN
+    -- Fallback JSON extraction if ORDS implicit parameter binding fails
+    IF v_time IS NULL AND v_body IS NOT NULL THEN
+        BEGIN
+            v_time := JSON_VALUE(v_body, '$.time');
+            v_interval := JSON_VALUE(v_body, '$.interval');
+        EXCEPTION
+            WHEN OTHERS THEN NULL;
+        END;
+    END IF;
 
-        IF UPPER(v_interval) = 'WEEKLY' THEN
-            v_freq := 'FREQ=WEEKLY; ';
-        ELSE
-            v_freq := 'FREQ=DAILY; ';
-        END IF;
+    IF v_time IS NULL OR LENGTH(v_time) < 5 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'JSON parameter "time" is required in HH:MI format (e.g. "02:10").');
+    END IF;
 
-        v_sql := 'BEGIN ' ||
-                '  FOR b IN (SELECT bom_id FROM boms) LOOP ' ||
-                '    BOM_VALIDATION_PKG.run_full_validation(b.bom_id, ''System Scheduler''); ' ||
-                '  END LOOP; ' ||
-                'END;';
+    v_job_name := 'BOM_VAL_JOB_' || TO_CHAR(SYSDATE, 'YYYYMMDD_HH24MISS');
 
-        DBMS_SCHEDULER.CREATE_JOB (
-            job_name        => v_job_name,
-            job_type        => 'PLSQL_BLOCK',
-            job_action      => v_sql,
-            start_date      => SYSTIMESTAMP,
-            repeat_interval => v_freq || 'BYHOUR=' || SUBSTR(v_time, 1, 2) || '; BYMINUTE=' || SUBSTR(v_time, 4, 2) || ';',
-            enabled         => TRUE,
-            comments        => 'Scheduled via VBCS UI Dashboard'
-        );
+    IF UPPER(NVL(v_interval, 'DAILY')) = 'WEEKLY' THEN
+        v_freq := 'FREQ=WEEKLY; ';
+    ELSE
+        v_freq := 'FREQ=DAILY; ';
+    END IF;
 
-        :status_code := 201;
-    EXCEPTION 
-        WHEN OTHERS THEN 
-            :status_code := 400;
-    END;
+    v_sql := 'BEGIN ' ||
+            '  FOR b IN (SELECT bom_id FROM boms) LOOP ' ||
+            '    BOM_VALIDATION_PKG.run_full_validation(b.bom_id, ''System Scheduler'', ''SCHEDULER''); ' ||
+            '  END LOOP; ' ||
+            'END;';
+
+    v_hour_str := LPAD(REGEXP_SUBSTR(v_time, '^([0-9]{1,2})', 1, 1, NULL, 1), 2, '0');
+    v_min_str  := LPAD(REGEXP_SUBSTR(v_time, ':([0-9]{1,2})', 1, 1, NULL, 1), 2, '0');
+
+    DBMS_SCHEDULER.CREATE_JOB (
+        job_name        => v_job_name,
+        job_type        => 'PLSQL_BLOCK',
+        job_action      => v_sql,
+        start_date      => SYSTIMESTAMP AT TIME ZONE '+05:00',
+        repeat_interval => v_freq || 'BYHOUR=' || v_hour_str || '; BYMINUTE=' || v_min_str || ';',
+        enabled         => TRUE,
+        comments        => 'Scheduled via VBCS UI Dashboard'
+    );
+
+    :status_code := 201;
+    owa_util.mime_header('application/json', TRUE);
+    htp.p('{"status":"success","job_name":"' || v_job_name || '","scheduled_time":"' || v_time || '"}');
+EXCEPTION 
+    WHEN OTHERS THEN 
+        :status_code := 400;
+        owa_util.mime_header('application/json', TRUE);
+        htp.p('{"error":"' || REPLACE(SQLERRM, '"', '\"') || '"}');
+END;
         #'
     );
 
@@ -951,6 +1025,26 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, v
         p_param_type         => 'INT',
         p_access_method      => 'OUT'
     );
+
+    ORDS.DEFINE_HANDLER(
+        p_module_name    => 'bom_api',
+        p_pattern        => 'schedules',
+        p_method         => 'GET',
+        p_source_type    => ORDS.source_type_query,
+        p_items_per_page => 10,
+        p_source         => q'#
+SELECT job_name,
+       enabled,
+       state,
+       repeat_interval,
+       TO_CHAR(start_date, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM') AS start_date,
+       TO_CHAR(next_run_date, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM') AS next_run_date
+  FROM user_scheduler_jobs
+ WHERE job_name LIKE 'BOM_VAL_JOB_%'
+ ORDER BY start_date DESC
+        #'
+    );
+
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'rules/:rule_id');
     ORDS.DEFINE_HANDLER(
