@@ -43,59 +43,122 @@
         }
       }
     },
-    "UpdateScheduleTimeChain": {
-      "variables": {
-        "timeVal": { "type": "string", "input": "fromCaller" }
-      },
-      "root": "assignTime",
+    "UpdateEditNameChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
       "actions": {
-        "assignTime": {
+        "assignVal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": { "$page.variables.editRuleName": { "source": "{{ $chain.variables.val }}" } }
+        }
+      }
+    },
+    "UpdateEditDescChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": {
+        "assignVal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": { "$page.variables.editRuleDescription": { "source": "{{ $chain.variables.val }}" } }
+        }
+      }
+    },
+    "UpdateEditSeverityChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": {
+        "assignVal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": { "$page.variables.editRuleSeverity": { "source": "{{ $chain.variables.val }}" } }
+        }
+      }
+    },
+    "UpdateEditEnabledChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": {
+        "assignVal": {
+          "module": "vb/action/builtin/assignVariablesAction",
+          "parameters": { "$page.variables.editRuleEnabled": { "source": "{{ $chain.variables.val }}" } }
+        }
+      }
+    },
+    "UpdateConfigParamChain": {
+      "variables": {
+        "param": { "type": "string", "input": "fromCaller" },
+        "val": { "type": "any", "input": "fromCaller" },
+        "isCheckbox": { "type": "string", "input": "fromCaller" }
+      },
+      "root": "callUpdateConfigJS",
+      "actions": {
+        "callUpdateConfigJS": {
+          "module": "vb/action/builtin/callModuleFunctionAction",
+          "parameters": {
+            "module": "[[ $functions ]]",
+            "functionName": "updateConfigState",
+            "params": [
+              "{{ $page.variables.editConfigState }}",
+              "{{ $chain.variables.param }}",
+              "{{ $chain.variables.val }}",
+              "{{ $chain.variables.isCheckbox }}"
+            ]
+          },
+          "outcomes": { "success": "assignState" }
+        },
+        "assignState": {
           "module": "vb/action/builtin/assignVariablesAction",
           "parameters": {
-            "$page.variables.scheduleTime": { "source": "{{ $chain.variables.timeVal }}" }
+            "$page.variables.editConfigState": { "source": "{{ $chain.results.callUpdateConfigJS }}" }
           }
         }
       }
     },
+    "UpdateNewCodeChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": { "assignVal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.newRuleCode": { "source": "{{ $chain.variables.val }}" } } } }
+    },
+    "UpdateNewNameChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": { "assignVal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.newRuleName": { "source": "{{ $chain.variables.val }}" } } } }
+    },
+    "UpdateNewDescChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": { "assignVal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.newRuleDescription": { "source": "{{ $chain.variables.val }}" } } } }
+    },
+    "UpdateNewSeverityChain": {
+      "variables": { "val": { "type": "string", "input": "fromCaller" } },
+      "root": "assignVal",
+      "actions": { "assignVal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.newRuleSeverity": { "source": "{{ $chain.variables.val }}" } } } }
+    },
+    "UpdateScheduleTimeChain": {
+      "variables": { "timeVal": { "type": "string", "input": "fromCaller" } },
+      "root": "assignTime",
+      "actions": { "assignTime": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.scheduleTime": { "source": "{{ $chain.variables.timeVal }}" } } } }
+    },
     "UpdateScheduleIntervalChain": {
-      "variables": {
-        "intervalVal": { "type": "string", "input": "fromCaller" }
-      },
+      "variables": { "intervalVal": { "type": "string", "input": "fromCaller" } },
       "root": "assignInterval",
-      "actions": {
-        "assignInterval": {
-          "module": "vb/action/builtin/assignVariablesAction",
-          "parameters": {
-            "$page.variables.scheduleInterval": { "source": "{{ $chain.variables.intervalVal }}" }
-          }
-        }
-      }
+      "actions": { "assignInterval": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.scheduleInterval": { "source": "{{ $chain.variables.intervalVal }}" } } } }
     },
     "OpenScheduleModalChain": {
       "root": "fetchActiveSchedule",
       "actions": {
         "fetchActiveSchedule": {
           "module": "vb/action/builtin/restAction",
-          "parameters": {
-            "endpoint": "BOMValidation/getSchedules"
-          },
-          "outcomes": {
-            "success": "parseScheduleResponse",
-            "failure": "setNoScheduleText"
-          }
+          "parameters": { "endpoint": "BOMValidation/getSchedules" },
+          "outcomes": { "success": "parseScheduleResponse", "failure": "setNoScheduleText" }
         },
         "parseScheduleResponse": {
           "module": "vb/action/builtin/callModuleFunctionAction",
           "parameters": {
             "module": "[[ $functions ]]",
             "functionName": "formatScheduleInfo",
-            "params": [
-              "[[ $chain.results.fetchActiveSchedule.body.items[0] ]]"
-            ]
+            "params": [ "{{ $chain.results.fetchActiveSchedule.body.items[0] }}" ]
           },
-          "outcomes": {
-            "success": "assignScheduleText"
-          }
+          "outcomes": { "success": "assignScheduleText" }
         },
         "assignScheduleText": {
           "module": "vb/action/builtin/assignVariablesAction",
@@ -130,9 +193,7 @@
     },
     "CloseAddRuleModalChain": {
       "root": "closeModal",
-      "actions": {
-        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isAddRuleModalOpen": { "source": false } } }
-      }
+      "actions": { "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isAddRuleModalOpen": { "source": false } } } }
     },
     "SubmitAddRuleChain": {
       "root": "callCreateRuleApi",
@@ -153,7 +214,7 @@
         },
         "refreshRulesList": {
           "module": "vb/action/builtin/fireDataProviderEventAction",
-          "parameters": { "target": "[[ $page.variables.rulesSdp ]]", "refresh": null },
+          "parameters": { "target": "{{ $page.variables.rulesSdp }}", "refresh": null },
           "outcomes": { "success": "closeModal" }
         },
         "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isAddRuleModalOpen": { "source": false } } },
@@ -165,9 +226,7 @@
     },
     "CloseScheduleModalChain": {
       "root": "closeModal",
-      "actions": {
-        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isScheduleModalOpen": { "source": false } } }
-      }
+      "actions": { "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isScheduleModalOpen": { "source": false } } } }
     },
     "SubmitScheduleChain": {
       "root": "callCreateScheduleApi",
@@ -184,15 +243,15 @@
           "outcomes": { "success": "notifySuccess", "failure": "fireErrorNotification" }
         },
         "notifySuccess": {
-  "module": "vb/action/builtin/fireNotificationEventAction",
-  "parameters": {
-    "summary": "Schedule Created Successfully",
-    "message": "[[ 'Validation job scheduled to run ' + $page.variables.scheduleInterval + ' at ' + $page.variables.scheduleTime + ' (GMT+5).' ]]",
-    "type": "confirmation",
-    "displayMode": "transient"
-  },
-  "outcomes": { "success": "closeModal" }
-},
+          "module": "vb/action/builtin/fireNotificationEventAction",
+          "parameters": {
+            "summary": "Schedule Created Successfully",
+            "message": "{{ 'Validation job scheduled to run ' + $page.variables.scheduleInterval + ' at ' + $page.variables.scheduleTime + ' (GMT+5).' }}",
+            "type": "confirmation",
+            "displayMode": "transient"
+          },
+          "outcomes": { "success": "closeModal" }
+        },
         "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isScheduleModalOpen": { "source": false } } },
         "fireErrorNotification": {
           "module": "vb/action/builtin/fireNotificationEventAction",
@@ -240,9 +299,7 @@
     },
     "CloseEditRuleModalChain": {
       "root": "closeModal",
-      "actions": {
-        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isEditRuleModalOpen": { "source": false } } }
-      }
+      "actions": { "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isEditRuleModalOpen": { "source": false } } } }
     },
     "SubmitEditRuleChain": {
       "root": "buildConfigJS",
@@ -263,7 +320,7 @@
           "module": "vb/action/builtin/restAction",
           "parameters": {
             "endpoint": "BOMValidation/updateRule",
-            "uriParams": { "rule_id": "[[ $page.variables.editRuleCode ]]" },
+            "uriParams": { "rule_id": "{{ $page.variables.editRuleCode }}" },
             "body": {
               "rule_name": "{{ $page.variables.editRuleName }}",
               "description": "{{ $page.variables.editRuleDescription }}",
@@ -276,7 +333,7 @@
         },
         "refreshRulesList": {
           "module": "vb/action/builtin/fireDataProviderEventAction",
-          "parameters": { "target": "[[ $page.variables.rulesSdp ]]", "refresh": null },
+          "parameters": { "target": "{{ $page.variables.rulesSdp }}", "refresh": null },
           "outcomes": { "success": "closeModal" }
         },
         "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isEditRuleModalOpen": { "source": false } } },
@@ -305,9 +362,7 @@
     },
     "CloseDeleteRuleModalChain": {
       "root": "closeModal",
-      "actions": {
-        "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isDeleteRuleModalOpen": { "source": false } } }
-      }
+      "actions": { "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isDeleteRuleModalOpen": { "source": false } } } }
     },
     "SubmitDeleteRuleChain": {
       "root": "callDeleteRuleApi",
@@ -316,13 +371,13 @@
           "module": "vb/action/builtin/restAction",
           "parameters": {
             "endpoint": "BOMValidation/deleteRule",
-            "uriParams": { "rule_code": "[[ $page.variables.deleteRuleCode ]]" }
+            "uriParams": { "rule_code": "{{ $page.variables.deleteRuleCode }}" }
           },
           "outcomes": { "success": "refreshRulesList", "failure": "fireErrorNotification" }
         },
         "refreshRulesList": {
           "module": "vb/action/builtin/fireDataProviderEventAction",
-          "parameters": { "target": "[[ $page.variables.rulesSdp ]]", "refresh": null },
+          "parameters": { "target": "{{ $page.variables.rulesSdp }}", "refresh": null },
           "outcomes": { "success": "closeModal" }
         },
         "closeModal": { "module": "vb/action/builtin/assignVariablesAction", "parameters": { "$page.variables.isDeleteRuleModalOpen": { "source": false } } },
@@ -372,22 +427,47 @@
     "clickCloseDeleteRule": { "chains": [ { "chainId": "CloseDeleteRuleModalChain" } ] },
     "clickSubmitDeleteRule": { "chains": [ { "chainId": "SubmitDeleteRuleChain" } ] },
     "changeScheduleTime": {
+      "chains": [ { "chainId": "UpdateScheduleTimeChain", "parameters": { "timeVal": "{{ $event.target.value }}" } } ]
+    },
+    "changeScheduleInterval": {
+      "chains": [ { "chainId": "UpdateScheduleIntervalChain", "parameters": { "intervalVal": "{{ $event.target.value }}" } } ]
+    },
+    "changeEditRuleName": {
+      "chains": [ { "chainId": "UpdateEditNameChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeEditRuleDescription": {
+      "chains": [ { "chainId": "UpdateEditDescChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeEditRuleSeverity": {
+      "chains": [ { "chainId": "UpdateEditSeverityChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeEditRuleEnabled": {
+      "chains": [ { "chainId": "UpdateEditEnabledChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeConfigParam": {
       "chains": [
         {
-          "chainId": "UpdateScheduleTimeChain",
-          "parameters": { "timeVal": "{{ $event.target.value }}" }
+          "chainId": "UpdateConfigParamChain",
+          "parameters": {
+            "param": "{{ $event.target.dataset.param }}",
+            "val": "{{ $event.target.dataset.type === 'checkbox' ? $event.target.checked : $event.target.value }}",
+            "isCheckbox": "{{ $event.target.dataset.type }}"
+          }
         }
       ]
     },
-    "changeScheduleInterval": {
-      "chains": [
-        {
-          "chainId": "UpdateScheduleIntervalChain",
-          "parameters": { "intervalVal": "{{ $event.target.value }}" }
-        }
-      ]
+    "changeNewRuleCode": {
+      "chains": [ { "chainId": "UpdateNewCodeChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeNewRuleName": {
+      "chains": [ { "chainId": "UpdateNewNameChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeNewRuleDescription": {
+      "chains": [ { "chainId": "UpdateNewDescChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
+    },
+    "changeNewRuleSeverity": {
+      "chains": [ { "chainId": "UpdateNewSeverityChain", "parameters": { "val": "{{ $event.target.value }}" } } ]
     }
-
   },
   "imports": {
     "components": {

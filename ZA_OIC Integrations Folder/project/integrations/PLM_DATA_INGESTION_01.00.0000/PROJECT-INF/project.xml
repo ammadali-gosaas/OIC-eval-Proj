@@ -51,9 +51,9 @@
             <ns2:inbound name="inbound_61">
                 <ns2:operation>execute</ns2:operation>
                 <ns2:resourceGroup name="resourcegroup_62">
-                    <ns2:resource name="resource_63" location="../resources/application_60/inbound_61/resourcegroup_62/PostStagedBOMs_REQUEST.jca" type="jca"/>
-                    <ns2:resource name="resource_64" location="../resources/application_60/inbound_61/resourcegroup_62/ICSFault.xsd" type="xsd"/>
                     <ns2:resource name="resource_65" location="../resources/application_60/inbound_61/resourcegroup_62/PostStagedBOMs_REQUEST.wsdl" type="wsdl"/>
+                    <ns2:resource name="resource_177" location="../resources/application_60/inbound_61/resourcegroup_62/PostStagedBOMs_REQUEST.jca" type="jca"/>
+                    <ns2:resource name="resource_178" location="../resources/application_60/inbound_61/resourcegroup_62/ICSFault.xsd" type="xsd"/>
                 </ns2:resourceGroup>
                 <ns2:input name="input_67">
                     <ns2:role>request</ns2:role>
@@ -208,11 +208,11 @@
             <ns2:role>undefined</ns2:role>
             <ns2:resourceGroup name="resourcegroup_150">
                 <ns2:resource name="resource_151" location="../resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.wsdl" type="wsdl"/>
-                <ns2:resource name="resource_160" location="../resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.jca" type="jca"/>
+                <ns2:resource name="resource_180" location="../resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.jca" type="jca"/>
             </ns2:resourceGroup>
-            <ns2:resourceGroup name="resourcegroup_163">
+            <ns2:resourceGroup name="resourcegroup_183">
                 <ns2:role>exprBuilderProperties</ns2:role>
-                <ns2:resource name="resource_164" location="../resources/processor_149/resourcegroup_163/READ_FILE_REFERENCEexpr.properties" type="properties">
+                <ns2:resource name="resource_184" location="../resources/processor_149/resourcegroup_183/READ_FILE_REFERENCEexpr.properties" type="properties">
                     <ns2:role>READ_FILE_REFERENCE</ns2:role>
                 </ns2:resource>
             </ns2:resourceGroup>
@@ -222,6 +222,27 @@
             <ns2:resourceRef refUri="messagecontext_88">
                 <ns2:role>secondary-source</ns2:role>
                 <ns2:subRole>RunBIPReport</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_88">
+                <ns2:role>secondary-source</ns2:role>
+                <ns2:subRole>RunBIPReport</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_20">
+                <ns2:role>primary-source</ns2:role>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_88">
+                <ns2:role>secondary-source</ns2:role>
+                <ns2:subRole>RunBIPReport</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_20">
+                <ns2:role>primary-source</ns2:role>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_88">
+                <ns2:role>secondary-source</ns2:role>
+                <ns2:subRole>RunBIPReport</ns2:subRole>
+            </ns2:resourceRef>
+            <ns2:resourceRef refUri="messagecontext_20">
+                <ns2:role>primary-source</ns2:role>
             </ns2:resourceRef>
             <ns2:resourceRef refUri="messagecontext_88">
                 <ns2:role>secondary-source</ns2:role>

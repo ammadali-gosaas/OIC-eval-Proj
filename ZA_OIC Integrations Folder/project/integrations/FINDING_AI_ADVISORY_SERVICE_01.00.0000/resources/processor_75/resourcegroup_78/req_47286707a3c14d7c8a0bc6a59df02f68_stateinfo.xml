@@ -7,23 +7,23 @@
     <oracle-xsl-webmapper:StateInfoIsStale>false</oracle-xsl-webmapper:StateInfoIsStale>
     <oracle-xsl-webmapper:SourcesReferenced>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_3c72e4b1-e616-434b-8099-ac3610ccdb1b/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_cf8c7f3c-7d05-429e-8ca3-98a1ad60e854/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:SourcesReferenced>
     <oracle-xsl-webmapper:SourcesReferenced>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_REQUEST/types">ns3:executeResponse</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_3c72e4b1-e616-434b-8099-ac3610ccdb1b/resources/application_46/inbound_47/resourcegroup_48/Invoke_Gemini_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_cf8c7f3c-7d05-429e-8ca3-98a1ad60e854/resources/application_46/inbound_47/resourcegroup_48/Invoke_Gemini_REQUEST.wsdl</uriAbsoluteLocation>
         <param>Invoke_Gemini</param>
         <primary>false</primary>
     </oracle-xsl-webmapper:SourcesReferenced>
     <oracle-xsl-webmapper:AllSources>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_3c72e4b1-e616-434b-8099-ac3610ccdb1b/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_cf8c7f3c-7d05-429e-8ca3-98a1ad60e854/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:AllSources>
     <oracle-xsl-webmapper:AllSources>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/Invoke_Gemini_REQUEST/types">ns3:executeResponse</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_3c72e4b1-e616-434b-8099-ac3610ccdb1b/resources/application_46/inbound_47/resourcegroup_48/Invoke_Gemini_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_cf8c7f3c-7d05-429e-8ca3-98a1ad60e854/resources/application_46/inbound_47/resourcegroup_48/Invoke_Gemini_REQUEST.wsdl</uriAbsoluteLocation>
         <param>Invoke_Gemini</param>
         <primary>false</primary>
     </oracle-xsl-webmapper:AllSources>

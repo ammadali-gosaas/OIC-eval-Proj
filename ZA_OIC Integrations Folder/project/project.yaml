@@ -7,14 +7,14 @@ smartTags:
 - "app:rest,style:app driven orchestration"
 - "app:rest, app:soap,style:app driven orchestration"
 revision: 0
-projectRevision: 318
+projectRevision: 356
 status: ACTIVE
 createdBy: zahra.kazmi@gosaas.ai
 createdDate: 2026-08-04T12:24:09.879+0000
 updatedBy: zahra.kazmi@gosaas.ai
 updatedDate: 2026-08-04T12:24:09.879+0000
 latestBy: ammad.ali@gosaas.ai
-latestDate: 2026-08-07T06:38:19.854+0000
+latestDate: 2026-08-11T06:02:47.707+0000
 CAV: 1
 simplifiedMode: false
 assets:
@@ -26,14 +26,14 @@ assets:
     updatedDate: 2026-08-06T06:59:31.122+0000
   - id: FINDING_AI_ADVISORY_SERVICE|01.00.0000
     name: Finding AI Advisory Service
-    revision: 8
+    revision: 11
     updatedBy: zahra.kazmi@gosaas.ai
-    updatedDate: 2026-08-06T06:54:27.883+0000
+    updatedDate: 2026-08-08T17:51:52.083+0000
   - id: PLM_DATA_INGESTION|01.00.0000
     name: PLM Data Ingestion
-    revision: 29
+    revision: 32
     updatedBy: ammad.ali@gosaas.ai
-    updatedDate: 2026-08-07T06:38:15.341+0000
+    updatedDate: 2026-08-11T06:13:18.288+0000
   connections:
   - id: FUSION_BIP_SOAP_CONN
     name: Fusion_BIP_SOAP_Conn
@@ -47,9 +47,9 @@ assets:
     updatedDate: 2026-08-04T12:29:08.334+0000
   - id: GENERIC_INBOUND_TRIGGER
     name: Generic_Inbound_Trigger
-    revision: 1
+    revision: 3
     updatedBy: zahra.kazmi@gosaas.ai
-    updatedDate: 2026-08-05T12:48:54.510+0000
+    updatedDate: 2026-08-08T17:50:40.566+0000
   - id: ORDS_ATP_REST_CONN
     name: ORDS_ATP_REST_Conn
     revision: 3

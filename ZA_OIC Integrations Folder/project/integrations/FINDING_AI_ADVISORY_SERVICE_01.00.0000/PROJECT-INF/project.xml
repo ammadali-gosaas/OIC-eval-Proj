@@ -20,8 +20,8 @@
                 <ns2:binding>rest</ns2:binding>
                 <ns2:operation>execute</ns2:operation>
                 <ns2:resourceGroup name="resourcegroup_15">
-                    <ns2:resource name="resource_16" location="../resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.jca" type="jca"/>
                     <ns2:resource name="resource_17" location="../resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl" type="wsdl"/>
+                    <ns2:resource name="resource_82" location="../resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.jca" type="jca"/>
                 </ns2:resourceGroup>
                 <ns2:input name="input_19">
                     <ns2:role>response</ns2:role>
@@ -185,9 +185,9 @@
             <ns2:resourceGroup name="resourcegroup_27">
                 <ns2:resource name="resource_28" location="../resources/processor_24/resourcegroup_27/req_a9dbe259c9e24f0d95260451eadb6f2d.xsl" type="xslt"/>
             </ns2:resourceGroup>
-            <ns2:resourceRef refUri="messagecontext_71">
+            <ns2:resourceRef refUri="messagecontext_69">
                 <ns2:role>secondary-source</ns2:role>
-                <ns2:subRole>Save_AI_Advisory</ns2:subRole>
+                <ns2:subRole>Save_AI_Advisory_REQUEST</ns2:subRole>
             </ns2:resourceRef>
             <ns2:input name="input_25">
                 <ns2:messageContextRef refUri="messagecontext_20"/>

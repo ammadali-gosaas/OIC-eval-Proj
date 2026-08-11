@@ -1,1 +1,1 @@
-{"name":"ForExporting","code":"FOREXPORTING","revision":2,"integrations":[{"code":"PLM_DATA_INGESTION","version":"01.00.0000"},{"code":"BOM_AI_ADVISORY_SERVICE","version":"01.00.0000"},{"code":"FINDING_AI_ADVISORY_SERVICE","version":"01.00.0000"}]}
+{"name":"ForExporting","code":"FOREXPORTING","revision":2,"integrations":[{"code":"PLM_DATA_INGESTION","version":"01.00.0000"},{"code":"FINDING_AI_ADVISORY_SERVICE","version":"01.00.0000"},{"code":"BOM_AI_ADVISORY_SERVICE","version":"01.00.0000"}]}

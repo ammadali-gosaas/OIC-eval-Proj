@@ -7,12 +7,12 @@
     <oracle-xsl-webmapper:StateInfoIsStale>false</oracle-xsl-webmapper:StateInfoIsStale>
     <oracle-xsl-webmapper:SourcesReferenced>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_f4c59c84-7a8d-466f-8906-441263804b58/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_cf8c7f3c-7d05-429e-8ca3-98a1ad60e854/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:SourcesReferenced>
     <oracle-xsl-webmapper:AllSources>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_f4c59c84-7a8d-466f-8906-441263804b58/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_cf8c7f3c-7d05-429e-8ca3-98a1ad60e854/resources/application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:AllSources>
 </oracle-xsl-webmapper:StateInfo>

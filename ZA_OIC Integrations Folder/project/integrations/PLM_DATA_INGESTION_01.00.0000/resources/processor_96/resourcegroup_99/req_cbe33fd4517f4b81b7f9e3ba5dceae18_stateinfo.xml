@@ -7,12 +7,12 @@
     <oracle-xsl-webmapper:StateInfoIsStale>false</oracle-xsl-webmapper:StateInfoIsStale>
     <oracle-xsl-webmapper:SourcesReferenced>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_611d1459-f085-4c97-8550-1782828bbc0d/resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_978b38c8-993a-47e2-9b0b-755dd2de7948/resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:SourcesReferenced>
     <oracle-xsl-webmapper:AllSources>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_611d1459-f085-4c97-8550-1782828bbc0d/resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_978b38c8-993a-47e2-9b0b-755dd2de7948/resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:AllSources>
 </oracle-xsl-webmapper:StateInfo>

@@ -12,23 +12,49 @@ define([], function () {
     }
   };
 
-  // Parses raw JSON string from DB into flat state object
-  PageModule.prototype.parseRuleConfig = function(ruleCode, configStr) {
+  PageModule.prototype.formatConfigString = function(config) {
+    if (!config) return '';
+    if (typeof config === 'object') {
+      try { return JSON.stringify(config); } catch(e) { return ''; }
+    }
+    return String(config);
+  };
+
+  PageModule.prototype.parseRuleConfig = function(ruleCode, configInput) {
     let config = {};
-    try { config = JSON.parse(configStr || '{}'); } catch(e){}
+    if (typeof configInput === 'object' && configInput !== null) {
+      config = configInput;
+    } else if (typeof configInput === 'string' && configInput.trim() !== '') {
+      try { config = JSON.parse(configInput); } catch(e) { config = {}; }
+    }
     
-    let state = {};
+    let state = {
+      allowWs: false,
+      defUom: true,
+      op: '>',
+      target: 0,
+      allowNull: false,
+      opSeq: false,
+      statuses: '',
+      endAfter: true,
+      open: true,
+      depth: 50,
+      useComp: true,
+      min: 0.1,
+      max: 1000
+    };
+
     if (ruleCode === 'FR-008') {
       state.allowWs = !!config.allow_whitespace;
       state.defUom = config.default_uom_allowed !== false;
     } else if (ruleCode === 'FR-009') {
       state.op = config.operator || '>';
-      state.target = config.target_value || 0;
+      state.target = config.target_value !== undefined ? config.target_value : 0;
       state.allowNull = !!config.allow_null;
     } else if (ruleCode === 'FR-010') {
-      state.opSeq = config.match_fields && config.match_fields.includes("operation_sequence");
+      state.opSeq = Array.isArray(config.match_fields) && config.match_fields.includes("operation_sequence");
     } else if (ruleCode === 'FR-011') {
-      state.statuses = (config.invalid_statuses || []).join(', ');
+      state.statuses = Array.isArray(config.invalid_statuses) ? config.invalid_statuses.join(', ') : '';
     } else if (ruleCode === 'FR-012') {
       state.endAfter = config.validate_end_after_start !== false;
       state.open = config.allow_open_ended !== false;
@@ -36,20 +62,21 @@ define([], function () {
       state.depth = config.max_traversal_depth || 50;
     } else if (ruleCode === 'FR-014') {
       state.useComp = config.use_component_thresholds !== false;
-      state.min = config.fallback_min || 0.1;
-      state.max = config.fallback_max || 1000;
+      state.min = config.fallback_min !== undefined ? config.fallback_min : 0.1;
+      state.max = config.fallback_max !== undefined ? config.fallback_max : 1000;
     }
     return state;
   };
 
-  // Converts UI state object back into JSON format required by DB
   PageModule.prototype.buildRuleConfig = function(ruleCode, state) {
+    state = state || {};
     let config = {};
+
     if (ruleCode === 'FR-008') {
       config.allow_whitespace = !!state.allowWs;
       config.default_uom_allowed = !!state.defUom;
     } else if (ruleCode === 'FR-009') {
-      config.operator = state.op;
+      config.operator = state.op || '>';
       config.target_value = Number(state.target);
       config.allow_null = !!state.allowNull;
     } else if (ruleCode === 'FR-010') {
@@ -57,7 +84,9 @@ define([], function () {
       if (state.opSeq) fields.push("operation_sequence");
       config.match_fields = fields;
     } else if (ruleCode === 'FR-011') {
-      config.invalid_statuses = (state.statuses || '').split(',').map(s => s.trim()).filter(s => s);
+      config.invalid_statuses = typeof state.statuses === 'string' 
+        ? state.statuses.split(',').map(s => s.trim()).filter(s => s) 
+        : [];
     } else if (ruleCode === 'FR-012') {
       config.validate_end_after_start = !!state.endAfter;
       config.allow_open_ended = !!state.open;
@@ -70,7 +99,18 @@ define([], function () {
     }
     return JSON.stringify(config);
   };
-// Converts raw database scheduler metadata into clean business text
+
+  // Dynamically updates config parameters state object on key/click events
+  PageModule.prototype.updateConfigState = function(currentState, key, val, isCheckbox) {
+    let newState = Object.assign({}, currentState || {});
+    if (isCheckbox === true || isCheckbox === 'true' || isCheckbox === 'checkbox') {
+      newState[key] = !!val;
+    } else {
+      newState[key] = val;
+    }
+    return newState;
+  };
+
   PageModule.prototype.formatScheduleInfo = function (item) {
     if (!item) return 'No active background schedule configured.';
 
@@ -96,5 +136,6 @@ define([], function () {
 
     return frequency + ' at ' + timeFormatted + ' (GMT+5) • Next Run: ' + dateFormatted + ' at ' + timeFormatted;
   };
+
   return PageModule;
 });

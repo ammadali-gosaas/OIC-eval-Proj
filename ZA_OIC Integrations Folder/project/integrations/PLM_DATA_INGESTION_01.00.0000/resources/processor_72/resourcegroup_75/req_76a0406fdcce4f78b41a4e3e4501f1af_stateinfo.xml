@@ -7,18 +7,18 @@
     <oracle-xsl-webmapper:StateInfoIsStale>false</oracle-xsl-webmapper:StateInfoIsStale>
     <oracle-xsl-webmapper:SourcesReferenced>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/stagefile/DecodeReportPayload_REQUEST/types">ns3:ReadResponse</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_a06a9ce2-d1a4-4729-9a90-27c4b8aa6d2b/resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_978b38c8-993a-47e2-9b0b-755dd2de7948/resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.wsdl</uriAbsoluteLocation>
         <param>DecodeReportPayload</param>
         <primary>false</primary>
     </oracle-xsl-webmapper:SourcesReferenced>
     <oracle-xsl-webmapper:AllSources>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/REST/RefreshPLMTrigger_REQUEST/types">ns3:execute</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_a06a9ce2-d1a4-4729-9a90-27c4b8aa6d2b/resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_978b38c8-993a-47e2-9b0b-755dd2de7948/resources/application_13/outbound_14/resourcegroup_15/RefreshPLMTrigger_REQUEST.wsdl</uriAbsoluteLocation>
         <primary>true</primary>
     </oracle-xsl-webmapper:AllSources>
     <oracle-xsl-webmapper:AllSources>
         <element xmlns:ns3="http://xmlns.oracle.com/cloud/adapter/stagefile/DecodeReportPayload_REQUEST/types">ns3:ReadResponse</element>
-        <uriAbsoluteLocation>file:/tmp/WC/itg_a06a9ce2-d1a4-4729-9a90-27c4b8aa6d2b/resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.wsdl</uriAbsoluteLocation>
+        <uriAbsoluteLocation>file:/tmp/WC/itg_978b38c8-993a-47e2-9b0b-755dd2de7948/resources/processor_149/resourcegroup_150/DecodeReportPayload_REQUEST.wsdl</uriAbsoluteLocation>
         <param>DecodeReportPayload</param>
         <primary>false</primary>
     </oracle-xsl-webmapper:AllSources>

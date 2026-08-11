@@ -8,10 +8,10 @@
             <oracle-xsl-mapper:schema location="../../application_13/outbound_14/resourcegroup_15/Receive_Finding_Request_REQUEST.wsdl" xml:id="id_5"/>
             <oracle-xsl-mapper:rootElement name="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types" xml:id="id_6"/>
          </oracle-xsl-mapper:source>
-         <oracle-xsl-mapper:source type="WSDL" xml:id="id_29">
-            <oracle-xsl-mapper:schema location="../../application_63/inbound_64/resourcegroup_65/Save_AI_Advisory_REQUEST.wsdl" xml:id="id_30"/>
-            <oracle-xsl-mapper:rootElement name="executeResponse" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST/types" xml:id="id_31"/>
-            <oracle-xsl-mapper:param name="Save_AI_Advisory" xml:id="id_32"/>
+         <oracle-xsl-mapper:source type="WSDL" xml:id="id_72">
+            <oracle-xsl-mapper:schema location="../../application_63/inbound_64/resourcegroup_65/Save_AI_Advisory_REQUEST.wsdl" xml:id="id_73"/>
+            <oracle-xsl-mapper:rootElement name="execute" namespace="http://xmlns.oracle.com/cloud/adapter/REST/Save_AI_Advisory_REQUEST/types" xml:id="id_74"/>
+            <oracle-xsl-mapper:param name="Save_AI_Advisory_REQUEST" xml:id="id_75"/>
          </oracle-xsl-mapper:source>
       </oracle-xsl-mapper:mapSources>
       <oracle-xsl-mapper:mapTargets xml:id="id_7">
@@ -21,16 +21,13 @@
          </oracle-xsl-mapper:target>
       </oracle-xsl-mapper:mapTargets>
    </oracle-xsl-mapper:schema>
-   <xsl:param name="Save_AI_Advisory" xml:id="id_45"/>
+   <xsl:param name="Save_AI_Advisory_REQUEST" xml:id="id_84"/>
    <xsl:template match="/" xml:id="id_11">
       <nstrgmpr:executeResponse xml:id="id_12">
          <ns21:response-wrapper xml:id="id_51">
-            <ns21:status xml:id="id_52">
-               <xsl:value-of xml:id="id_53" select="$Save_AI_Advisory/nsmpr2:executeResponse/ns38:response-wrapper/ns38:status"/>
-            </ns21:status>
-            <ns21:message xml:id="id_54">
-               <xsl:value-of xml:id="id_55" select="$Save_AI_Advisory/nsmpr2:executeResponse/ns38:response-wrapper/ns38:message"/>
-            </ns21:message>
+            <ns21:ai_summary xml:id="id_89">
+               <xsl:value-of xml:id="id_90" select="$Save_AI_Advisory_REQUEST/nsmpr2:execute/ns38:request-wrapper/ns38:ai_summary"/>
+            </ns21:ai_summary>
          </ns21:response-wrapper>
       </nstrgmpr:executeResponse>
    </xsl:template>

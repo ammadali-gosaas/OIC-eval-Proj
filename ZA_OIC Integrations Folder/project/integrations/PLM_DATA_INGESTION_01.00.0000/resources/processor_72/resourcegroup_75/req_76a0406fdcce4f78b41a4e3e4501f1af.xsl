@@ -57,12 +57,27 @@
                   <ns35:effectivity_start xml:id="id_58">
                      <xsl:value-of xml:id="id_59" select="ns24:EFFECTIVITY_START"/>
                   </ns35:effectivity_start>
+                  <ns35:effectivity_end xml:id="id_125">
+                     <xsl:value-of xml:id="id_126" select="ns24:EFFECTIVITY_END"/>
+                  </ns35:effectivity_end>
                   <ns35:operation_seq_num xml:id="id_62">
                      <xsl:value-of xml:id="id_63" select="ns24:OPERATION_SEQ_NUM"/>
                   </ns35:operation_seq_num>
                   <ns35:item_class xml:id="id_60">
                      <xsl:value-of xml:id="id_61" select="ns24:ITEM_CLASS"/>
                   </ns35:item_class>
+               <ns35:item_status xml:id="id_99">
+                     <xsl:value-of xml:id="id_100" select="ns24:ITEM_STATUS"/>
+                  </ns35:item_status>
+                  <ns35:component_sequence_id xml:id="id_101">
+                     <xsl:value-of xml:id="id_102" select="ns24:COMPONENT_SEQUENCE_ID"/>
+                  </ns35:component_sequence_id>
+                  <ns35:item_sequence_number xml:id="id_103">
+                     <xsl:value-of xml:id="id_104" select="ns24:ITEM_SEQUENCE_NUMBER"/>
+                  </ns35:item_sequence_number>
+                  <ns35:component_path xml:id="id_105">
+                     <xsl:value-of xml:id="id_106" select="ns24:COMPONENT_PATH"/>
+                  </ns35:component_path>
                </ns35:items>
             </xsl:for-each>
          </ns35:request-wrapper>

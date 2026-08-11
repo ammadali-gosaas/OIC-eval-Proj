@@ -1,9 +1,7 @@
 <adapter-config xsdTargetNamespace="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types" name="Receive_Finding_Request_REQUESTPortType" adapter="REST" wsdlLocation="Receive_Finding_Request_REQUEST.wsdl" xmlns="http://platform.integration.oracle/blocks/adapter/fw/metadata">
   <connection-factory location="cloud/CloudAdapter">
     <non-managed-connection managedConnectionFactoryClassName="oracle.cloud.connector.rest.RestAdapterConnectionFactory">
-      <property name="cloud.adapter.plugin.init.version" value="25.06.0"/>
       <property name="cloud.adapter.plugin.version" value="25.06.0"/>
-      <property name="cloud.adapter.sdk.init.version" value="25.06.0"/>
       <property name="cloud.adapter.sdk.version" value="25.06.0"/>
       <property name="privateEndpoint" value="false"/>
       <property name="rest.inbound.security.configurable" value="true"/>
@@ -21,11 +19,14 @@
       <property name="ResponseElementNS" value="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request/types"/>
       <property name="ResponseElementName" value="response-wrapper"/>
       <property name="ResponseMediaType" value="application/json"/>
-      <property name="ResponseSample" value="{   &quot;status&quot;: &quot;Success&quot;,   &quot;message&quot;: &quot;AI Advisory generated and saved to the database.&quot; }"/>
+      <property name="ResponseSample" value="{   &quot;ai_summary&quot;: &quot;summary&quot;,             &quot;ai_suggested_action&quot;: &quot;action&quot; }"/>
+      <property name="activationSpecClass" value="oracle.tip.adapter.cloud.CloudActivationSpec"/>
       <property name="allowChangeDefaultNamespace" value="false"/>
       <property name="copyFaultFromModel" value="true"/>
+      <property name="forceWsdlTypesBuild" value="true"/>
       <property name="generateConnectivityPropertiesInboundRequest" value="RESTINREQ"/>
       <property name="generateConnectivityPropertiesInboundResponse" value="RESTINRES"/>
+      <property name="generateInboundCredentials" value="true"/>
       <property name="generatePartnerLink" value="false"/>
       <property name="generateSecurityPropertiesInboundRequest" value="SECURITYPROPSRESTINREQ"/>
       <property name="integrationSchemaNamespace" value="http://xmlns.oracle.com/cloud/adapter/REST/Receive_Finding_Request_REQUEST/types"/>
