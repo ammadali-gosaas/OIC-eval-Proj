@@ -17,7 +17,7 @@ USING (
     UNION ALL
     SELECT 'FR-010', 'Exact Duplicate', 'WARNING',
            'Duplicate component in the same sequence',
-           '{"match_fields": ["parent_item_number", "component_item_number", "operation_sequence", "effectivity_start"]}'
+           '{"match_fields": ["parent_item_number", "component_item_number", "operation_sequence"]}'
       FROM dual
     UNION ALL
     SELECT 'FR-011', 'Obsolete Component', 'HIGH',
@@ -91,13 +91,13 @@ DECLARE
     v_component_id    bom_components.bom_component_id%TYPE;
 
     PROCEDURE add_component (
-        p_bom_id       IN boms.bom_id%TYPE,
-        p_parent       IN bom_components.parent_item_number%TYPE,
-        p_component    IN bom_components.component_item_number%TYPE,
-        p_class        IN bom_components.component_item_class%TYPE,
-        p_level        IN bom_components.bom_level%TYPE,
-        p_path         IN bom_components.component_path%TYPE,
-        p_duplicate    IN BOOLEAN DEFAULT FALSE
+        p_bom_id        IN boms.bom_id%TYPE,
+        p_parent        IN bom_components.parent_item_number%TYPE,
+        p_component     IN bom_components.component_item_number%TYPE,
+        p_class         IN bom_components.component_item_class%TYPE,
+        p_level         IN bom_components.bom_level%TYPE,
+        p_path          IN bom_components.component_path%TYPE,
+        p_duplicate     IN BOOLEAN DEFAULT FALSE
     ) IS
     BEGIN
         v_rel_no := v_rel_no + 1;
@@ -364,7 +364,7 @@ PROMPT Creating BOM_VALIDATION_PKG
 
 CREATE OR REPLACE PACKAGE bom_validation_pkg AS
     PROCEDURE run_full_validation(
-        p_bom_id       NUMBER,
+        p_bom_id        NUMBER,
         p_requested_by VARCHAR2,
         p_trigger_type VARCHAR2 DEFAULT 'ON_DEMAND'
     );
@@ -454,7 +454,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
     END log_event;
 
     PROCEDURE run_full_validation(
-        p_bom_id       NUMBER,
+        p_bom_id        NUMBER,
         p_requested_by VARCHAR2,
         p_trigger_type VARCHAR2 DEFAULT 'ON_DEMAND'
     ) IS
@@ -640,8 +640,6 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                        UPPER(TRIM(c.parent_item_number)) normalized_parent,
                        UPPER(TRIM(c.component_item_number)) normalized_component,
                        CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END normalized_operation,
-                       c.effectivity_start,
-                       c.effectivity_end,
                        MIN(c.bom_component_id) anchor_component_id,
                        COUNT(*) duplicate_count,
                        JSON_ARRAYAGG(
@@ -662,9 +660,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                  GROUP BY c.bom_id,
                           UPPER(TRIM(c.parent_item_number)),
                           UPPER(TRIM(c.component_item_number)),
-                          CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END,
-                          c.effectivity_start,
-                          c.effectivity_end
+                          CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END
                 HAVING COUNT(*) > 1
             )
             SELECT b.organization_code,
@@ -672,8 +668,6 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                    dg.normalized_parent,
                    dg.normalized_component,
                    dg.normalized_operation,
-                   dg.effectivity_start,
-                   dg.effectivity_end,
                    dg.anchor_component_id,
                    dg.duplicate_count,
                    dg.duplicate_rows
@@ -696,13 +690,10 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                 v_run_id,
                 rec.anchor_component_id,
                 v_rule_fr010,
-                'FR-010|' || rec.normalized_parent || '|' || rec.normalized_component || '|' ||
-                    rec.normalized_operation || '|' ||
-                    NVL(TO_CHAR(rec.effectivity_start, 'YYYYMMDDHH24MISSFF6TZH:TZM'), '<NULL>') || '|' ||
-                    NVL(TO_CHAR(rec.effectivity_end, 'YYYYMMDDHH24MISSFF6TZH:TZM'), '<NULL>'),
+                'FR-010|' || rec.normalized_parent || '|' || rec.normalized_component || '|' || rec.normalized_operation,
                 'OPEN',
                 'Duplicate row count=' || rec.duplicate_count,
-                'Exactly one relationship for normalized parent/component/operation/effectivity key',
+                'Exactly one relationship for normalized parent/component/operation key',
                 JSON_OBJECT(
                     'ruleCode' VALUE 'FR-010',
                     'bomId' VALUE p_bom_id,
@@ -711,8 +702,6 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                     'normalizedParentItemNumber' VALUE rec.normalized_parent,
                     'normalizedComponentItemNumber' VALUE rec.normalized_component,
                     'normalizedOperationSequence' VALUE rec.normalized_operation,
-                    'effectivityStart' VALUE TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
-                    'effectivityEnd' VALUE TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
                     'duplicateRows' VALUE rec.duplicate_rows FORMAT JSON
                     RETURNING CLOB
                 ),
