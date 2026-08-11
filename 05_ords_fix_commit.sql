@@ -955,11 +955,26 @@ END;
         p_source_type    => ORDS.source_type_query,
         p_items_per_page => 100,
         p_source         => q'#
-SELECT log_id, correlation_id, related_run_id, related_finding_id, component_code, stage, source_mode, status, occurred_at, duration_ms, event_level, error_code, details
-  FROM diagnostic_logs ORDER BY occurred_at DESC, log_id DESC
+SELECT dl.log_id, 
+       dl.correlation_id, 
+       br.bom_id,
+       dl.related_run_id, 
+       dl.related_finding_id, 
+       dl.component_code, 
+       dl.stage, 
+       dl.source_mode, 
+       dl.status, 
+       dl.occurred_at, 
+       dl.duration_ms, 
+       dl.event_level, 
+       dl.error_code, 
+       dl.details
+  FROM diagnostic_logs dl
+  LEFT JOIN bom_runs br ON br.run_id = dl.related_run_id
+ ORDER BY dl.occurred_at DESC, dl.log_id DESC
         #'
     );
-
+ 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings');
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
