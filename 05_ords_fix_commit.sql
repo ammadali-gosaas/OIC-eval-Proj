@@ -190,7 +190,7 @@ DECLARE
     TYPE t_bom_id_map IS TABLE OF BOOLEAN INDEX BY PLS_INTEGER;
     v_cleared_boms  t_bom_id_map;
 
-    -- Widened buffers to prevent ORA-06502 on full multi-org syncs
+    -- Widened buffers
     v_org_code      VARCHAR2(100);
     v_assembly_item VARCHAR2(250);
     v_bill_seq_id   VARCHAR2(250);
@@ -204,6 +204,16 @@ DECLARE
     v_bom_level     NUMBER;
     v_effectivity   VARCHAR2(250);
     v_import_batch  VARCHAR2(250);
+
+    -- Expanded attributes for full validation support
+    v_item_status   VARCHAR2(100);
+    v_eff_start_str VARCHAR2(100);
+    v_eff_end_str   VARCHAR2(100);
+    v_eff_start     TIMESTAMP WITH TIME ZONE;
+    v_eff_end       TIMESTAMP WITH TIME ZONE;
+    v_comp_seq_id   VARCHAR2(200);
+    v_item_seq_num  NUMBER;
+    v_comp_path     VARCHAR2(4000);
     v_count         NUMBER := 0;
 
     FUNCTION get_str(p_obj JSON_OBJECT_T, p_key VARCHAR2) RETURN VARCHAR2 IS
@@ -222,9 +232,7 @@ DECLARE
             END IF;
         END IF;
         RETURN NULL;
-    EXCEPTION
-        WHEN OTHERS THEN
-            RETURN NULL;
+    EXCEPTION WHEN OTHERS THEN RETURN NULL;
     END get_str;
 
     FUNCTION get_num(p_obj JSON_OBJECT_T, p_key VARCHAR2) RETURN NUMBER IS
@@ -241,9 +249,7 @@ DECLARE
             END IF;
         END IF;
         RETURN NULL;
-    EXCEPTION
-        WHEN OTHERS THEN
-            RETURN NULL;
+    EXCEPTION WHEN OTHERS THEN RETURN NULL;
     END get_num;
 BEGIN
     IF v_clob IS NULL OR dbms_lob.getlength(v_clob) = 0 THEN
@@ -285,6 +291,17 @@ BEGIN
         v_effectivity   := NVL(get_str(v_item, 'effectivity_control'), 'DATE_EFFECTIVE');
         v_import_batch  := NVL(get_str(v_item, 'import_batch_id'), 'REST_IMPORT_BATCH');
 
+        -- Parse newly added attributes
+        v_item_status   := NVL(get_str(v_item, 'item_status'), 'Active');
+        v_comp_seq_id   := get_str(v_item, 'component_sequence_id');
+        v_item_seq_num  := get_num(v_item, 'item_sequence_number');
+        v_comp_path     := get_str(v_item, 'component_path');
+        v_eff_start_str := get_str(v_item, 'effectivity_start');
+        v_eff_end_str   := get_str(v_item, 'effectivity_end');
+
+        v_eff_start := CASE WHEN v_eff_start_str IS NOT NULL THEN TO_TIMESTAMP_TZ(v_eff_start_str, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') ELSE NULL END;
+        v_eff_end   := CASE WHEN v_eff_end_str IS NOT NULL THEN TO_TIMESTAMP_TZ(v_eff_end_str, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') ELSE NULL END;
+
         IF v_org_code IS NULL OR v_assembly_item IS NULL THEN
             RAISE_APPLICATION_ERROR(-20003, 'Missing organization_code or assembly_item_number in JSON item.');
         END IF;
@@ -297,7 +314,6 @@ BEGIN
                AND item_number = v_assembly_item
                AND structure_name = v_struct_name;
 
-            -- Reset health score and status label for refreshed BOMs
             UPDATE boms
                SET description = NVL(v_bom_desc, description),
                    item_class = NVL(v_item_class, item_class),
@@ -306,7 +322,6 @@ BEGIN
                    imported_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
              WHERE bom_id = v_bom_id;
 
-            -- Clear stale findings and old components ONCE per BOM header in this payload
             IF NOT v_cleared_boms.EXISTS(v_bom_id) THEN
                 DELETE FROM validation_findings 
                  WHERE run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = v_bom_id);
@@ -331,15 +346,17 @@ BEGIN
                 v_cleared_boms(v_bom_id) := TRUE;
         END;
 
-        -- 2. Insert component details
+        -- 2. Insert complete component details
         IF v_comp_item IS NOT NULL THEN
             INSERT INTO bom_components (
-                bom_id, parent_item_number, component_item_number,
-                quantity, uom_code, operation_sequence, bom_level, 
+                bom_id, component_sequence_id, parent_item_number, component_item_number,
+                quantity, uom_code, operation_sequence, item_sequence_number, item_status,
+                effectivity_start, effectivity_end, bom_level, component_path,
                 component_item_class, imported_at
             ) VALUES (
-                v_bom_id, v_assembly_item, v_comp_item,
-                v_qty, v_uom, v_op_seq, v_bom_level, 
+                v_bom_id, v_comp_seq_id, v_assembly_item, v_comp_item,
+                v_qty, v_uom, v_op_seq, v_item_seq_num, v_item_status,
+                v_eff_start, v_eff_end, v_bom_level, v_comp_path,
                 v_item_class, SYSTIMESTAMP AT TIME ZONE 'UTC'
             );
         END IF;
@@ -1137,7 +1154,8 @@ BEGIN
     ELSE
         COMMIT;
         :status_code := 200;
-    END IF;EXCEPTION 
+    END IF;
+EXCEPTION 
     WHEN OTHERS THEN 
         ROLLBACK; 
         :status_code := 400;
