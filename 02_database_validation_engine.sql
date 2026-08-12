@@ -453,6 +453,176 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
         );
     END log_event;
 
+    PROCEDURE eval_custom_rules(
+        p_bom_id IN NUMBER,
+        p_run_id IN NUMBER
+    ) IS
+        v_created_at TIMESTAMP(6) WITH TIME ZONE;
+    BEGIN
+        FOR r IN (
+            SELECT rule_id, rule_code, rule_name, severity, rule_config
+              FROM validation_rules
+             WHERE enabled_flag = 'Y'
+               AND (
+                   JSON_VALUE(rule_config, '$.key') IS NOT NULL
+                   OR rule_code NOT IN ('FR-008','FR-009','FR-010','FR-011','FR-012','FR-013','FR-014')
+               )
+        ) LOOP
+            BEGIN
+                DECLARE
+                    v_key   VARCHAR2(100) := UPPER(TRIM(JSON_VALUE(r.rule_config, '$.key')));
+                    v_cond  VARCHAR2(100) := UPPER(TRIM(JSON_VALUE(r.rule_config, '$.condition')));
+                    v_val   VARCHAR2(1000) := JSON_VALUE(r.rule_config, '$.value');
+                BEGIN
+                    IF v_key IS NOT NULL AND v_cond IS NOT NULL THEN
+                        FOR comp IN (
+                            SELECT c.bom_component_id,
+                                   c.parent_item_number,
+                                   c.component_item_number,
+                                   c.uom_code,
+                                   c.quantity,
+                                   c.item_status,
+                                   c.effectivity_start,
+                                   c.effectivity_end,
+                                   c.component_item_class,
+                                   c.operation_sequence,
+                                   c.item_sequence_number,
+                                   c.bom_level,
+                                   c.component_path,
+                                   b.organization_code,
+                                   b.structure_name,
+                                   b.effectivity_control,
+                                   b.description AS bom_description,
+                                   b.item_number AS bom_item_number
+                              FROM bom_components c
+                              JOIN boms b ON b.bom_id = c.bom_id
+                             WHERE c.bom_id = p_bom_id
+                        ) LOOP
+                            DECLARE
+                                v_violates   BOOLEAN := FALSE;
+                                v_actual_str VARCHAR2(4000);
+                            BEGIN
+                                -- Map target key to physical table attribute
+                                IF v_key IN ('UOM_CODE', 'UOM') THEN
+                                    v_actual_str := comp.uom_code;
+                                ELSIF v_key = 'QUANTITY' THEN
+                                    v_actual_str := TO_CHAR(comp.quantity);
+                                ELSIF v_key IN ('ITEM_STATUS', 'LIFECYCLE_STATUS') THEN
+                                    v_actual_str := comp.item_status;
+                                ELSIF v_key IN ('COMPONENT_ITEM', 'COMPONENT_ITEM_NUMBER') THEN
+                                    v_actual_str := comp.component_item_number;
+                                ELSIF v_key IN ('PARENT_ITEM_NUMBER', 'PARENT_ITEM') THEN
+                                    v_actual_str := comp.parent_item_number;
+                                ELSIF v_key IN ('ITEM_CLASS', 'COMPONENT_ITEM_CLASS') THEN
+                                    v_actual_str := comp.component_item_class;
+                                ELSIF v_key IN ('OPERATION_SEQ_NUM', 'OPERATION_SEQUENCE') THEN
+                                    v_actual_str := comp.operation_sequence;
+                                ELSIF v_key IN ('ITEM_SEQUENCE_NUMBER', 'ITEM_SEQ') THEN
+                                    v_actual_str := TO_CHAR(comp.item_sequence_number);
+                                ELSIF v_key = 'BOM_LEVEL' THEN
+                                    v_actual_str := TO_CHAR(comp.bom_level);
+                                ELSIF v_key = 'EFFECTIVITY_START' THEN
+                                    v_actual_str := TO_CHAR(comp.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SS');
+                                ELSIF v_key = 'EFFECTIVITY_END' THEN
+                                    v_actual_str := TO_CHAR(comp.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SS');
+                                ELSIF v_key = 'COMPONENT_PATH' THEN
+                                    v_actual_str := comp.component_path;
+                                ELSIF v_key = 'ORGANIZATION_CODE' THEN
+                                    v_actual_str := comp.organization_code;
+                                ELSIF v_key = 'STRUCTURE_NAME' THEN
+                                    v_actual_str := comp.structure_name;
+                                ELSIF v_key = 'EFFECTIVITY_CONTROL' THEN
+                                    v_actual_str := comp.effectivity_control;
+                                ELSIF v_key IN ('DESCRIPTION', 'BOM_DESCRIPTION') THEN
+                                    v_actual_str := comp.bom_description;
+                                ELSE
+                                    v_actual_str := NULL;
+                                END IF;
+
+                                -- Evaluate condition operator
+                                IF v_cond IN ('NOT_NULL', 'NOT_EMPTY') THEN
+                                    IF TRIM(v_actual_str) IS NULL THEN
+                                        v_violates := TRUE;
+                                    END IF;
+                                ELSIF v_cond = 'GREATER_THAN' THEN
+                                    IF comp.quantity <= TO_NUMBER(v_val) THEN
+                                        v_violates := TRUE;
+                                    END IF;
+                                ELSIF v_cond = 'LESS_THAN' THEN
+                                    IF comp.quantity >= TO_NUMBER(v_val) THEN
+                                        v_violates := TRUE;
+                                    END IF;
+                                ELSIF v_cond = 'EQUAL' THEN
+                                    IF NVL(v_actual_str, '___NULL___') != NVL(v_val, '___NULL___') THEN
+                                        v_violates := TRUE;
+                                    END IF;
+                                ELSIF v_cond = 'NOT_EQUAL' THEN
+                                    IF NVL(v_actual_str, '___NULL___') = NVL(v_val, '___NULL___') THEN
+                                        v_violates := TRUE;
+                                    END IF;
+                                ELSIF v_cond = 'NOT_IN' THEN
+                                    IF INSTR(UPPER(v_val), UPPER(NVL(v_actual_str, ''))) > 0 THEN
+                                        v_violates := TRUE;
+                                    END IF;
+                                ELSIF v_cond = 'DATE_GREATER_THAN_EQUAL' THEN
+                                    IF comp.effectivity_end IS NOT NULL AND comp.effectivity_start IS NOT NULL THEN
+                                        IF comp.effectivity_end < comp.effectivity_start THEN
+                                            v_violates := TRUE;
+                                        END IF;
+                                    END IF;
+                                END IF;
+
+                                IF v_violates THEN
+                                    v_created_at := utc_now();
+                                    INSERT INTO validation_findings (
+                                        run_id,
+                                        bom_component_id,
+                                        rule_id,
+                                        finding_key,
+                                        issue_status,
+                                        actual_value,
+                                        expected_value,
+                                        evidence_json,
+                                        created_at
+                                    ) VALUES (
+                                        p_run_id,
+                                        comp.bom_component_id,
+                                        r.rule_id,
+                                        r.rule_code || '|' || comp.bom_component_id,
+                                        'OPEN',
+                                        NVL(v_actual_str, 'NULL'),
+                                        'Condition: ' || v_cond || ' ' || NVL(v_val, ''),
+                                        JSON_OBJECT(
+                                            'ruleCode' VALUE r.rule_code,
+                                            'ruleName' VALUE r.rule_name,
+                                            'bomId' VALUE p_bom_id,
+                                            'organizationCode' VALUE comp.organization_code,
+                                            'bomItemNumber' VALUE comp.bom_item_number,
+                                            'parentItemNumber' VALUE comp.parent_item_number,
+                                            'componentItemNumber' VALUE comp.component_item_number,
+                                            'targetKey' VALUE v_key,
+                                            'condition' VALUE v_cond,
+                                            'expectedValue' VALUE v_val,
+                                            'actualValue' VALUE v_actual_str
+                                            RETURNING CLOB
+                                        ),
+                                        v_created_at
+                                    );
+                                END IF;
+                            EXCEPTION
+                                WHEN OTHERS THEN
+                                    NULL;
+                            END;
+                        END LOOP;
+                    END IF;
+                END;
+            EXCEPTION
+                WHEN OTHERS THEN
+                    NULL;
+            END;
+        END LOOP;
+    END eval_custom_rules;
+
     PROCEDURE run_full_validation(
         p_bom_id        NUMBER,
         p_requested_by VARCHAR2,
@@ -923,6 +1093,8 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
                 v_created_at
             );
         END LOOP;
+
+        eval_custom_rules(p_bom_id, v_run_id);
 
         SELECT COUNT(*)
           INTO v_finding_count
