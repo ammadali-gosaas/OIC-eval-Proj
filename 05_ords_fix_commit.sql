@@ -508,11 +508,11 @@ SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number,
         p_mimes_allowed => 'application/json',
         p_source        => q'#
 DECLARE
-    v_bom_id       NUMBER := TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR);
+    v_bom_id        NUMBER := TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR);
     v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
-    v_run_id       NUMBER;
-    v_corr_id      VARCHAR2(100);
-    v_now          TIMESTAMP(6) WITH TIME ZONE;
+    v_run_id        NUMBER;
+    v_corr_id       VARCHAR2(100);
+    v_now           TIMESTAMP(6) WITH TIME ZONE;
 BEGIN
     SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' INTO v_now FROM dual;
     v_corr_id := 'REFRESH-' || TO_CHAR(v_now, 'YYYYMMDDHH24MISSFF3') || '-' || RAWTOHEX(SYS_GUID());
@@ -579,7 +579,7 @@ SELECT br.run_id, br.bom_id, b.item_number, br.run_kind, br.trigger_type, br.sta
         p_mimes_allowed => 'application/json',
         p_source        => q'#
 DECLARE
-    v_bom_id       NUMBER := :bom_id;
+    v_bom_id        NUMBER := :bom_id;
     v_requested_by VARCHAR2(200) := NVL(:requested_by, 'ords-local-user');
 BEGIN
     IF v_bom_id IS NULL THEN 
@@ -975,26 +975,45 @@ SELECT dl.log_id,
         #'
     );
  
-    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'findings');
+  
+    ORDS.DEFINE_TEMPLATE(
+        p_module_name => 'bom_api',
+        p_pattern     => 'findings'
+    );
+
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
         p_pattern        => 'findings',
         p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
+        p_source_type    => 'json/collection',
+        p_items_per_page => 10,
         p_source         => q'#
-SELECT vf.finding_id, vf.run_id, vf.bom_component_id, b.bom_id, b.item_number, vr.rule_code, vr.rule_name, vr.severity, vf.issue_status, vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+SELECT vf.finding_id,
+       vf.run_id,
+       vf.bom_component_id,
+       b.bom_id,
+       b.item_number,
+       vr.rule_code,
+       vr.rule_name,
+       vr.severity,
+       vf.issue_status,
+       vf.actual_value,
+       vf.expected_value,
+       vf.evidence_json,
+       vf.created_at,
+       COUNT(*) OVER() AS "total_count"
   FROM validation_findings vf
   JOIN validation_rules vr ON vr.rule_id = vf.rule_id
   JOIN bom_runs br ON br.run_id = vf.run_id
   JOIN boms b ON b.bom_id = br.bom_id
- WHERE (:bom_id IS NULL OR b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR))
-     AND (:issue_status IS NULL OR vf.issue_status = :issue_status)
-     AND (:severity IS NULL OR vr.severity = :severity)
-     AND (:rule_code IS NULL OR vr.rule_code = :rule_code)
+ WHERE (:bom_id IS NULL OR :bom_id = 'null' OR :bom_id = '' OR b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR))
+   AND (:issue_status IS NULL OR :issue_status = 'null' OR :issue_status = '' OR vf.issue_status = :issue_status)
+   AND (:severity IS NULL OR :severity = 'null' OR :severity = '' OR vr.severity = :severity)
+   AND (:rule_code IS NULL OR :rule_code = 'null' OR :rule_code = '' OR vr.rule_code = :rule_code)
  ORDER BY vf.created_at DESC
         #'
     );
+ 
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'schedules');
     ORDS.DEFINE_HANDLER(
@@ -1037,10 +1056,10 @@ BEGIN
     END IF;
 
     v_sql := 'BEGIN ' ||
-            '  FOR b IN (SELECT bom_id FROM boms) LOOP ' ||
-            '    BOM_VALIDATION_PKG.run_full_validation(b.bom_id, ''System Scheduler'', ''SCHEDULER''); ' ||
-            '  END LOOP; ' ||
-            'END;';
+             '  FOR b IN (SELECT bom_id FROM boms) LOOP ' ||
+             '    BOM_VALIDATION_PKG.run_full_validation(b.bom_id, ''System Scheduler'', ''SCHEDULER''); ' ||
+             '  END LOOP; ' ||
+             'END;';
 
     v_hour_str := LPAD(REGEXP_SUBSTR(v_time, '^([0-9]{1,2})', 1, 1, NULL, 1), 2, '0');
     v_min_str  := LPAD(REGEXP_SUBSTR(v_time, ':([0-9]{1,2})', 1, 1, NULL, 1), 2, '0');
