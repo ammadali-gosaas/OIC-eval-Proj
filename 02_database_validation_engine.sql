@@ -388,8 +388,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
 
         v_correlation_id := 'VAL-' || TO_CHAR(utc_now(), 'YYYYMMDDHH24MISSFF3') || '-' ||
                             RAWTOHEX(SYS_GUID());
-
-        INSERT INTO bom_runs (
+INSERT INTO bom_runs (
             bom_id,
             run_kind,
             trigger_type,
@@ -415,6 +414,30 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
             0
         )
         RETURNING run_id INTO v_run_id;
+
+        -- Archive any findings/reviews still live from a PRIOR run of this BOM
+        INSERT INTO finding_reviews_history (
+            review_id, finding_id, old_status, new_status, review_comment, reviewed_by, reviewed_at
+        )
+        SELECT fr.review_id, fr.finding_id, fr.old_status, fr.new_status, fr.review_comment, fr.reviewed_by, fr.reviewed_at
+          FROM finding_reviews fr
+          JOIN validation_findings vf ON vf.finding_id = fr.finding_id
+         WHERE vf.run_id != v_run_id
+           AND vf.run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = p_bom_id);
+
+        INSERT INTO validation_findings_history (
+            finding_id, run_id, bom_id, bom_component_id, rule_id, finding_key,
+            issue_status, actual_value, expected_value, evidence_json, created_at
+        )
+        SELECT vf.finding_id, vf.run_id, p_bom_id, vf.bom_component_id, vf.rule_id, vf.finding_key,
+               vf.issue_status, vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+          FROM validation_findings vf
+         WHERE vf.run_id != v_run_id
+           AND vf.run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = p_bom_id);
+
+        DELETE FROM validation_findings
+         WHERE run_id != v_run_id
+           AND run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = p_bom_id);
 
         log_event(v_correlation_id, v_run_id, NULL, 'VALIDATION_START', 'RUNNING', 'INFO',
                   'Started deterministic validation for BOM_ID=' || p_bom_id || ', ITEM_NUMBER=' || v_bom_item || '.');

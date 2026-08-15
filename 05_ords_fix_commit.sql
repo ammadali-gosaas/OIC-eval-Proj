@@ -50,6 +50,7 @@ SELECT JSON_OBJECT(
                'riskyBoms' VALUE (SELECT COUNT(*) FROM boms WHERE status_label = 'RISKY'),
                'averageHealthScore' VALUE (SELECT ROUND(NVL(AVG(health_score), 0), 2) FROM boms),
                'openFindings' VALUE (SELECT COUNT(*) FROM validation_findings WHERE issue_status IN ('OPEN', 'REVIEWED'))
+               RETURNING CLOB
            ),
            'severityCounts' VALUE (
                SELECT JSON_ARRAYAGG(JSON_OBJECT('severity' VALUE severity, 'findingCount' VALUE finding_count) ORDER BY severity RETURNING CLOB)
@@ -127,6 +128,7 @@ BEGIN
                    'component_count'    VALUE b.component_count,
                    'open_finding_count' VALUE b.open_finding_count,
                    'finding_severities' VALUE b.finding_severities
+                   RETURNING CLOB
                ) ORDER BY b.health_score ASC, b.item_number RETURNING CLOB
            )
       INTO v_arr
@@ -325,11 +327,30 @@ BEGIN
              WHERE bom_id = v_bom_id;
 
             IF NOT v_cleared_boms.EXISTS(v_bom_id) THEN
-                DELETE FROM validation_findings 
-                 WHERE run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = v_bom_id);
-                DELETE FROM bom_components WHERE bom_id = v_bom_id;
-                v_cleared_boms(v_bom_id) := TRUE;
-            END IF;
+    INSERT INTO finding_reviews_history (
+        review_id, finding_id, old_status, new_status, review_comment, reviewed_by, reviewed_at
+    )
+    SELECT fr.review_id, fr.finding_id, fr.old_status, fr.new_status, fr.review_comment, fr.reviewed_by, fr.reviewed_at
+      FROM finding_reviews fr
+      JOIN validation_findings vf ON vf.finding_id = fr.finding_id
+      JOIN bom_runs br ON br.run_id = vf.run_id
+     WHERE br.bom_id = v_bom_id;
+
+    INSERT INTO validation_findings_history (
+        finding_id, run_id, bom_id, bom_component_id, rule_id, finding_key,
+        issue_status, actual_value, expected_value, evidence_json, created_at
+    )
+    SELECT vf.finding_id, vf.run_id, v_bom_id, vf.bom_component_id, vf.rule_id, vf.finding_key,
+           vf.issue_status, vf.actual_value, vf.expected_value, vf.evidence_json, vf.created_at
+      FROM validation_findings vf
+      JOIN bom_runs br ON br.run_id = vf.run_id
+     WHERE br.bom_id = v_bom_id;
+
+    DELETE FROM validation_findings 
+     WHERE run_id IN (SELECT run_id FROM bom_runs WHERE bom_id = v_bom_id);
+    DELETE FROM bom_components WHERE bom_id = v_bom_id;
+    v_cleared_boms(v_bom_id) := TRUE;
+END IF;
 
         EXCEPTION
             WHEN NO_DATA_FOUND THEN
@@ -415,6 +436,7 @@ SELECT JSON_OBJECT(
                'itemClass' VALUE b.item_class, 
                'healthScore' VALUE b.health_score, 
                'statusLabel' VALUE b.status_label
+               RETURNING CLOB
            ),
            'components' VALUE (
                SELECT JSON_ARRAYAGG(JSON_OBJECT(
@@ -432,6 +454,7 @@ SELECT JSON_OBJECT(
                    'componentPath' VALUE c.component_path, 
                    'anomalyMinQuantity' VALUE c.anomaly_min_quantity, 
                    'anomalyMaxQuantity' VALUE c.anomaly_max_quantity
+                   RETURNING CLOB
                ) ORDER BY c.bom_level, c.item_sequence_number, c.bom_component_id RETURNING CLOB) 
                FROM bom_components c 
                WHERE c.bom_id = b.bom_id
@@ -450,6 +473,7 @@ SELECT JSON_OBJECT(
                    'expectedValue' VALUE vf.expected_value, 
                    'evidence' VALUE vf.evidence_json FORMAT JSON, 
                    'createdAt' VALUE TO_CHAR(vf.created_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+                   RETURNING CLOB
                ) ORDER BY vf.created_at DESC, vf.finding_id DESC RETURNING CLOB) 
                FROM bom_runs br 
                JOIN validation_findings vf ON vf.run_id = br.run_id 
@@ -468,6 +492,7 @@ SELECT JSON_OBJECT(
                    'reviewComment' VALUE fr.review_comment,
                    'reviewedBy'    VALUE fr.reviewed_by,
                    'reviewedAt'    VALUE TO_CHAR(fr.reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+                   RETURNING CLOB
                ) ORDER BY fr.reviewed_at DESC RETURNING CLOB)
                FROM finding_reviews fr
                JOIN validation_findings vf ON vf.finding_id = fr.finding_id
@@ -541,16 +566,21 @@ END;
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/runs');
     ORDS.DEFINE_HANDLER(
-        p_module_name    => 'bom_api',
-        p_pattern        => 'boms/:bom_id/runs',
-        p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
-        p_source         => q'#
-SELECT run_id, bom_id, run_kind, trigger_type, status, source_mode, idempotency_key, correlation_id, requested_by, started_at, completed_at, input_count, finding_count, health_score, error_code, error_message
-  FROM bom_runs WHERE bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR) ORDER BY started_at DESC, run_id DESC
+    p_module_name    => 'bom_api',
+    p_pattern        => 'boms/:bom_id/runs',
+    p_method         => 'GET',
+    p_source_type    => 'json/collection',
+    p_items_per_page => 10,
+    p_source         => q'#
+SELECT run_id, bom_id, run_kind, trigger_type, status, source_mode, idempotency_key,
+       correlation_id, requested_by, started_at, completed_at, input_count,
+       finding_count, health_score, error_code, error_message,
+       COUNT(*) OVER() AS "total_count"
+  FROM bom_runs
+ WHERE bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+ ORDER BY started_at DESC, run_id DESC
         #'
-    );
+);
 
     --------------------------------------------------------------------
     -- 3. VALIDATION EXECUTION ENDPOINTS
@@ -564,12 +594,34 @@ SELECT run_id, bom_id, run_kind, trigger_type, status, source_mode, idempotency_
         p_module_name    => 'bom_api',
         p_pattern        => 'validation-runs',
         p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
+        p_source_type    => 'json/collection',
+        p_items_per_page => 10,
         p_source         => q'#
-SELECT br.run_id, br.bom_id, b.item_number, br.run_kind, br.trigger_type, br.status, br.source_mode, br.correlation_id, br.requested_by, br.started_at, br.completed_at, br.input_count, br.finding_count
-  FROM bom_runs br JOIN boms b ON b.bom_id = br.bom_id
- ORDER BY br.started_at DESC, br.run_id DESC
+SELECT br.run_id, 
+       br.bom_id, 
+       b.item_number, 
+       br.run_kind, 
+       br.trigger_type, 
+       br.status, 
+       br.source_mode, 
+       br.correlation_id, 
+       br.requested_by, 
+       br.started_at, 
+       br.completed_at, 
+       br.input_count, 
+       br.finding_count,
+       COUNT(*) OVER() AS "total_count"
+  FROM bom_runs br 
+  JOIN boms b ON b.bom_id = br.bom_id
+ WHERE (:bom_id IS NULL OR :bom_id = 'null' OR b.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR))
+   AND (:status IS NULL OR :status = 'null' OR UPPER(br.status) = UPPER(:status))
+   AND (:trigger_type IS NULL OR :trigger_type = 'null' OR UPPER(br.trigger_type) = UPPER(:trigger_type))
+   AND (:start_date IS NULL OR :start_date = 'null' OR CAST(br.started_at AS DATE) >= TO_DATE(:start_date DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD'))
+   AND (:end_date IS NULL OR :end_date = 'null' OR CAST(br.started_at AS DATE) < TO_DATE(:end_date DEFAULT NULL ON CONVERSION ERROR, 'YYYY-MM-DD') + 1)
+ ORDER BY 
+   CASE WHEN LOWER(:sort_order) = 'asc' THEN br.started_at END ASC,
+   CASE WHEN LOWER(:sort_order) != 'asc' OR :sort_order IS NULL THEN br.started_at END DESC,
+   br.run_id DESC
         #'
     );
 
@@ -949,13 +1001,17 @@ END;
         p_access_method      => 'OUT'
     );
 
-    ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'diagnostics/runs');
+    ORDS.DEFINE_TEMPLATE(
+        p_module_name => 'bom_api',
+        p_pattern     => 'diagnostics/runs'
+    );
+
     ORDS.DEFINE_HANDLER(
         p_module_name    => 'bom_api',
         p_pattern        => 'diagnostics/runs',
         p_method         => 'GET',
-        p_source_type    => ORDS.source_type_query,
-        p_items_per_page => 100,
+        p_source_type    => 'json/collection',
+        p_items_per_page => 10,
         p_source         => q'#
 SELECT dl.log_id, 
        dl.correlation_id, 
@@ -970,14 +1026,19 @@ SELECT dl.log_id,
        dl.duration_ms, 
        dl.event_level, 
        dl.error_code, 
-       dl.details
+       dl.details,
+       COUNT(*) OVER() AS "total_count"
   FROM diagnostic_logs dl
   LEFT JOIN bom_runs br ON br.run_id = dl.related_run_id
- ORDER BY dl.occurred_at DESC, dl.log_id DESC
+ WHERE (:start_date IS NULL OR :start_date = 'null' OR TRUNC(CAST(dl.occurred_at AS DATE)) >= TO_DATE(:start_date, 'YYYY-MM-DD'))
+   AND (:end_date IS NULL OR :end_date = 'null' OR TRUNC(CAST(dl.occurred_at AS DATE)) <= TO_DATE(:end_date, 'YYYY-MM-DD'))
+ ORDER BY 
+   CASE WHEN LOWER(:sort_order) = 'asc' THEN dl.occurred_at END ASC,
+   CASE WHEN LOWER(:sort_order) != 'asc' OR :sort_order IS NULL THEN dl.occurred_at END DESC,
+   dl.log_id DESC
         #'
     );
- 
-  
+
     ORDS.DEFINE_TEMPLATE(
         p_module_name => 'bom_api',
         p_pattern     => 'findings'
@@ -1012,10 +1073,10 @@ SELECT vf.finding_id,
    AND (:issue_status IS NULL OR :issue_status = 'null' OR :issue_status = '' OR vf.issue_status = :issue_status)
    AND (:severity IS NULL OR :severity = 'null' OR :severity = '' OR vr.severity = :severity)
    AND (:rule_code IS NULL OR :rule_code = 'null' OR :rule_code = '' OR vr.rule_code = :rule_code)
+   AND (:run_id IS NULL OR :run_id = 'null' OR :run_id = '' OR vf.run_id = TO_NUMBER(:run_id DEFAULT NULL ON CONVERSION ERROR))
  ORDER BY vf.created_at DESC
         #'
     );
- 
 
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'schedules');
     ORDS.DEFINE_HANDLER(
@@ -1118,6 +1179,9 @@ SELECT job_name,
         #'
     );
 
+    --------------------------------------------------------------------
+    -- FIXED PUT rules/:rule_id HANDLER WITH PARSED JSON
+    --------------------------------------------------------------------
     ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'rules/:rule_id');
     ORDS.DEFINE_HANDLER(
         p_module_name   => 'bom_api',
@@ -1127,22 +1191,44 @@ SELECT job_name,
         p_mimes_allowed => 'application/json',
         p_source        => q'#
 DECLARE
+    v_body      CLOB := :body_text;
     v_rule_code VARCHAR2(50) := UPPER(TRIM(:rule_id));
-    v_name VARCHAR2(200) := :rule_name;
-    v_severity VARCHAR2(20) := UPPER(TRIM(:severity));
-    v_desc VARCHAR2(1000) := :description;
-    v_config VARCHAR2(4000) := :rule_config;
-    v_enabled CHAR(1) := NVL(UPPER(TRIM(:enabled_flag)), 'Y');
+    v_name      VARCHAR2(200);
+    v_severity  VARCHAR2(20);
+    v_desc      VARCHAR2(1000);
+    v_config    VARCHAR2(4000);
+    v_enabled   VARCHAR2(10);
 BEGIN
-    IF v_rule_code IS NULL THEN RAISE_APPLICATION_ERROR(-20023, 'Path parameter rule_code must be provided.'); END IF;
+    IF v_rule_code IS NULL THEN 
+        RAISE_APPLICATION_ERROR(-20023, 'Path parameter rule_code must be provided.'); 
+    END IF;
+    
+    -- Parse JSON payload parameters explicitly
+    IF v_body IS NOT NULL AND DBMS_LOB.GETLENGTH(v_body) > 0 THEN
+        BEGIN
+            v_name     := JSON_VALUE(v_body, '$.rule_name');
+            v_severity := UPPER(TRIM(JSON_VALUE(v_body, '$.severity')));
+            v_desc     := JSON_VALUE(v_body, '$.description');
+            v_config   := JSON_VALUE(v_body, '$.rule_config');
+            v_enabled  := UPPER(TRIM(JSON_VALUE(v_body, '$.enabled_flag')));
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+    END IF;
+
+    -- Fallback checks
+    v_name     := NVL(v_name, :rule_name);
+    v_severity := NVL(v_severity, UPPER(TRIM(:severity)));
+    v_desc     := NVL(v_desc, :description);
+    v_config   := NVL(v_config, :rule_config);
+    v_enabled  := NVL(v_enabled, UPPER(TRIM(:enabled_flag)));
     
     UPDATE validation_rules 
-       SET rule_name = NVL(v_name, rule_name),
-           severity = NVL(v_severity, severity),
-           description = NVL(v_desc, description),
-           rule_config = NVL(v_config, rule_config),
-           enabled_flag = v_enabled,
-           updated_at = SYSTIMESTAMP AT TIME ZONE 'UTC'
+       SET rule_name    = NVL(v_name, rule_name),
+           severity     = NVL(v_severity, severity),
+           description  = NVL(v_desc, description),
+           rule_config  = NVL(v_config, rule_config),
+           enabled_flag = NVL(v_enabled, enabled_flag),
+           updated_at   = SYSTIMESTAMP AT TIME ZONE 'UTC'
      WHERE UPPER(rule_code) = v_rule_code;
      
     IF SQL%ROWCOUNT = 0 THEN
@@ -1152,7 +1238,9 @@ BEGIN
         :status_code := 200;
     END IF;
 EXCEPTION 
-    WHEN OTHERS THEN ROLLBACK; :status_code := 400;
+    WHEN OTHERS THEN 
+        ROLLBACK; 
+        :status_code := 400;
 END;
         #'
     );
@@ -1209,6 +1297,87 @@ END;
         p_param_type         => 'INT',
         p_access_method      => 'OUT'
     );
+
+
+ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/components');
+ORDS.DEFINE_HANDLER(
+    p_module_name    => 'bom_api',
+    p_pattern        => 'boms/:bom_id/components',
+    p_method         => 'GET',
+    p_source_type    => 'json/collection',
+    p_items_per_page => 25,
+    p_source         => q'#
+SELECT c.bom_component_id,
+       c.component_sequence_id,
+       c.parent_item_number,
+       c.component_item_number,
+       c.component_item_class,
+       c.quantity,
+       c.uom_code,
+       c.item_sequence_number,
+       c.operation_sequence,
+       c.item_status,
+       c.bom_level,
+       c.component_path,
+       c.anomaly_min_quantity,
+       c.anomaly_max_quantity,
+       COUNT(*) OVER() AS "total_count"
+  FROM bom_components c
+ WHERE c.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+ ORDER BY c.bom_level, c.item_sequence_number, c.bom_component_id
+        #'
+);
+
+ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/findings-history');
+ORDS.DEFINE_HANDLER(
+    p_module_name    => 'bom_api',
+    p_pattern        => 'boms/:bom_id/findings-history',
+    p_method         => 'GET',
+    p_source_type    => 'json/collection',
+    p_items_per_page => 50,
+    p_source         => q'#
+SELECT vfh.finding_id, vfh.run_id, vr.rule_code, vr.rule_name, vr.severity,
+       vfh.issue_status, vfh.actual_value, vfh.expected_value,
+       vfh.evidence_json, vfh.created_at, vfh.archived_at,
+       COUNT(*) OVER() AS "total_count"
+  FROM validation_findings_history vfh
+  JOIN validation_rules vr ON vr.rule_id = vfh.rule_id
+ WHERE vfh.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+   AND (:run_id IS NULL OR vfh.run_id = TO_NUMBER(:run_id DEFAULT NULL ON CONVERSION ERROR))
+ ORDER BY vfh.archived_at DESC, vfh.created_at DESC
+        #'
+);
+
+ORDS.DEFINE_HANDLER(
+    p_module_name    => 'bom_api',
+    p_pattern        => 'boms/:bom_id/audit-trail',
+    p_method         => 'GET',
+    p_source_type    => 'json/collection',
+    p_items_per_page => 10,
+    p_source         => q'#
+SELECT finding_id, run_id, rule_name, rule_code, old_status, new_status,
+       review_comment, reviewed_by, reviewed_at,
+       COUNT(*) OVER() AS "total_count"
+  FROM (
+    SELECT fr.finding_id, vf.run_id, vr.rule_name, vr.rule_code,
+           fr.old_status, fr.new_status, fr.review_comment, fr.reviewed_by, fr.reviewed_at
+      FROM finding_reviews fr
+      JOIN validation_findings vf ON vf.finding_id = fr.finding_id
+      JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+      JOIN bom_runs br ON br.run_id = vf.run_id
+     WHERE br.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+    UNION ALL
+    SELECT frh.finding_id, vfh.run_id, vr.rule_name, vr.rule_code,
+           frh.old_status, frh.new_status, frh.review_comment, frh.reviewed_by, frh.reviewed_at
+      FROM finding_reviews_history frh
+      JOIN validation_findings_history vfh ON vfh.finding_id = frh.finding_id
+      JOIN validation_rules vr ON vr.rule_id = vfh.rule_id
+     WHERE vfh.bom_id = TO_NUMBER(:bom_id DEFAULT NULL ON CONVERSION ERROR)
+  )
+ ORDER BY reviewed_at DESC
+        #'
+);
+
 
     COMMIT;
 END;
