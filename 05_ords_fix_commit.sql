@@ -193,6 +193,7 @@ DECLARE
     -- Widened buffers
     v_org_code      VARCHAR2(100);
     v_assembly_item VARCHAR2(250);
+    v_parent_item   VARCHAR2(250);
     v_bill_seq_id   VARCHAR2(250);
     v_struct_name   VARCHAR2(250);
     v_bom_desc      VARCHAR2(4000);
@@ -279,6 +280,7 @@ BEGIN
 
         v_org_code      := UPPER(TRIM(get_str(v_item, 'organization_code')));
         v_assembly_item := TRIM(NVL(get_str(v_item, 'assembly_item_number'), get_str(v_item, 'item_number')));
+        v_parent_item   := TRIM(NVL(get_str(v_item, 'parent_item_number'), v_assembly_item));
         v_bill_seq_id   := TRIM(get_str(v_item, 'bill_sequence_id'));
         v_struct_name   := NVL(TRIM(get_str(v_item, 'structure_name')), 'PRIMARY');
         v_bom_desc      := NVL(get_str(v_item, 'bom_description'), get_str(v_item, 'description'));
@@ -346,7 +348,7 @@ BEGIN
                 v_cleared_boms(v_bom_id) := TRUE;
         END;
 
-        -- 2. Insert complete component details
+        -- 2. Insert component details using v_parent_item as immediate parent
         IF v_comp_item IS NOT NULL THEN
             INSERT INTO bom_components (
                 bom_id, component_sequence_id, parent_item_number, component_item_number,
@@ -354,7 +356,7 @@ BEGIN
                 effectivity_start, effectivity_end, bom_level, component_path,
                 component_item_class, imported_at
             ) VALUES (
-                v_bom_id, v_comp_seq_id, v_assembly_item, v_comp_item,
+                v_bom_id, v_comp_seq_id, v_parent_item, v_comp_item,
                 v_qty, v_uom, v_op_seq, v_item_seq_num, v_item_status,
                 v_eff_start, v_eff_end, v_bom_level, v_comp_path,
                 v_item_class, SYSTIMESTAMP AT TIME ZONE 'UTC'
