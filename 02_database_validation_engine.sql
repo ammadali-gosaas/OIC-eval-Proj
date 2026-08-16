@@ -89,9 +89,12 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
         SELECT rule_id, rule_config INTO p_rule_id, p_rule_config
           FROM validation_rules WHERE rule_code = p_rule_code AND enabled_flag = 'Y';
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20001, 'Rule ' || p_rule_code || ' missing.');
+        WHEN NO_DATA_FOUND THEN 
+            -- Safely return NULL if the rule is disabled instead of crashing
+            p_rule_id := NULL;
+            p_rule_config := NULL;
     END get_rule_details;
-
+    
     FUNCTION utc_now
         RETURN TIMESTAMP WITH TIME ZONE
     IS
@@ -352,7 +355,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
         v_rule_fr013      validation_rules.rule_id%TYPE;
         v_rule_fr014      validation_rules.rule_id%TYPE;
         v_config_fr008 VARCHAR2(4000); v_config_fr009 VARCHAR2(4000); v_config_fr010 VARCHAR2(4000); v_config_fr011 VARCHAR2(4000); v_config_fr012 VARCHAR2(4000); v_config_fr013 VARCHAR2(4000); v_config_fr014 VARCHAR2(4000);
-        v_fr008_allow_ws VARCHAR2(10); v_fr009_target NUMBER; v_fr010_match_op VARCHAR2(10); v_fr012_allow_open VARCHAR2(10); v_fr013_depth NUMBER; v_fr014_use_comp VARCHAR2(10); v_fr014_min NUMBER; v_fr014_max NUMBER;
+        v_fr008_allow_ws VARCHAR2(10); v_fr009_target NUMBER; v_fr009_op VARCHAR2(5); v_fr009_allow_null VARCHAR2(10); v_fr010_match_op VARCHAR2(10);v_fr012_allow_open VARCHAR2(10); v_fr013_depth NUMBER; v_fr014_use_comp VARCHAR2(10); v_fr014_min NUMBER; v_fr014_max NUMBER;
         v_created_at      TIMESTAMP(6) WITH TIME ZONE;
         v_completed_at    TIMESTAMP(6) WITH TIME ZONE;
         v_err_msg         VARCHAR2(4000);
@@ -379,6 +382,8 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
 
         v_fr008_allow_ws := NVL(JSON_VALUE(v_config_fr008, '$.allow_whitespace'), 'false');
         v_fr009_target := NVL(TO_NUMBER(JSON_VALUE(v_config_fr009, '$.target_value')), 0);
+        v_fr009_op := NVL(JSON_VALUE(v_config_fr009, '$.operator'), '>');
+        v_fr009_allow_null := NVL(JSON_VALUE(v_config_fr009, '$.allow_null'), 'false');
         v_fr010_match_op := CASE WHEN v_config_fr010 LIKE '%"operation_sequence"%' THEN 'true' ELSE 'false' END;
         v_fr012_allow_open := NVL(JSON_VALUE(v_config_fr012, '$.allow_open_ended'), 'true');
         v_fr013_depth := NVL(TO_NUMBER(JSON_VALUE(v_config_fr013, '$.max_traversal_depth')), 50);
@@ -442,389 +447,302 @@ INSERT INTO bom_runs (
         log_event(v_correlation_id, v_run_id, NULL, 'VALIDATION_START', 'RUNNING', 'INFO',
                   'Started deterministic validation for BOM_ID=' || p_bom_id || ', ITEM_NUMBER=' || v_bom_item || '.');
 
-        FOR rec IN (
-            SELECT b.organization_code,
-                   b.item_number bom_item_number,
-                   c.bom_component_id,
-                   c.parent_item_number,
-                   c.component_item_number,
-                   c.uom_code
-              FROM boms b
-              JOIN bom_components c ON c.bom_id = b.bom_id
-             WHERE b.bom_id = p_bom_id
-               AND ((v_fr008_allow_ws = 'false' AND TRIM(c.uom_code) IS NULL) OR (v_fr008_allow_ws = 'true' AND c.uom_code IS NULL))
-        ) LOOP
-            v_created_at := utc_now();
+IF v_rule_fr008 IS NOT NULL THEN
+            FOR rec IN (
+                SELECT b.organization_code,
+                       b.item_number bom_item_number,
+                       c.bom_component_id,
+                       c.parent_item_number,
+                       c.component_item_number,
+                       c.uom_code
+                  FROM boms b
+                  JOIN bom_components c ON c.bom_id = b.bom_id
+                 WHERE b.bom_id = p_bom_id
+                   AND ((v_fr008_allow_ws = 'false' AND TRIM(c.uom_code) IS NULL) OR (v_fr008_allow_ws = 'true' AND c.uom_code IS NULL))
+            ) LOOP
+                v_created_at := utc_now();
 
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.bom_component_id,
-                v_rule_fr008,
-                'FR-008|' || rec.bom_component_id,
-                'OPEN',
-                NVL2(rec.uom_code, '"' || rec.uom_code || '"', 'NULL'),
-                'Non-empty UOM_CODE',
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-008',
-                    'bomId' VALUE p_bom_id,
-                    'organizationCode' VALUE rec.organization_code,
-                    'bomItemNumber' VALUE rec.bom_item_number,
-                    'parentItemNumber' VALUE rec.parent_item_number,
-                    'componentItemNumber' VALUE rec.component_item_number,
-                    'missingField' VALUE 'UOM_CODE',
-                    'rawUomCode' VALUE rec.uom_code
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
+                INSERT INTO validation_findings (
+                    run_id, bom_component_id, rule_id, finding_key, issue_status, actual_value, expected_value, evidence_json, created_at
+                ) VALUES (
+                    v_run_id, rec.bom_component_id, v_rule_fr008, 'FR-008|' || rec.bom_component_id, 'OPEN',
+                    NVL2(rec.uom_code, '"' || rec.uom_code || '"', 'NULL'), 'Non-empty UOM_CODE',
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-008', 'bomId' VALUE p_bom_id, 'organizationCode' VALUE rec.organization_code,
+                        'bomItemNumber' VALUE rec.bom_item_number, 'parentItemNumber' VALUE rec.parent_item_number,
+                        'componentItemNumber' VALUE rec.component_item_number, 'missingField' VALUE 'UOM_CODE',
+                        'rawUomCode' VALUE rec.uom_code RETURNING CLOB
+                    ), v_created_at
+                );
+            END LOOP;
+        END IF;
 
-        FOR rec IN (
-            SELECT b.organization_code,
-                   b.item_number bom_item_number,
-                   c.bom_component_id,
-                   c.parent_item_number,
-                   c.component_item_number,
-                   c.quantity
-              FROM boms b
-              JOIN bom_components c ON c.bom_id = b.bom_id
-             WHERE b.bom_id = p_bom_id
-               AND (c.quantity IS NULL OR c.quantity <= v_fr009_target)
-        ) LOOP
-            v_created_at := utc_now();
+       IF v_rule_fr009 IS NOT NULL THEN
+            FOR rec IN (
+                SELECT b.organization_code,
+                       b.item_number bom_item_number,
+                       c.bom_component_id,
+                       c.parent_item_number,
+                       c.component_item_number,
+                       c.quantity
+                  FROM boms b
+                  JOIN bom_components c ON c.bom_id = b.bom_id
+                 WHERE b.bom_id = p_bom_id
+                   AND (
+                       (v_fr009_allow_null = 'false' AND c.quantity IS NULL)
+                       OR (c.quantity IS NOT NULL AND NOT (
+                           (v_fr009_op = '>' AND c.quantity > v_fr009_target) OR
+                           (v_fr009_op = '>=' AND c.quantity >= v_fr009_target) OR
+                           (v_fr009_op = '=' AND c.quantity = v_fr009_target) OR
+                           (v_fr009_op = '<' AND c.quantity < v_fr009_target) OR
+                           (v_fr009_op = '<=' AND c.quantity <= v_fr009_target)
+                       ))
+                   )
+            ) LOOP
+                v_created_at := utc_now();
 
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.bom_component_id,
-                v_rule_fr009,
-                'FR-009|' || rec.bom_component_id,
-                'OPEN',
-                NVL(TO_CHAR(rec.quantity), 'NULL'),
-                'Quantity greater than ' || v_fr009_target,
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-009',
-                    'bomId' VALUE p_bom_id,
-                    'organizationCode' VALUE rec.organization_code,
-                    'bomItemNumber' VALUE rec.bom_item_number,
-                    'parentItemNumber' VALUE rec.parent_item_number,
-                    'componentItemNumber' VALUE rec.component_item_number,
-                    'receivedQuantity' VALUE rec.quantity
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
+                INSERT INTO validation_findings (
+                    run_id, bom_component_id, rule_id, finding_key, issue_status, actual_value, expected_value, evidence_json, created_at
+                ) VALUES (
+                    v_run_id, rec.bom_component_id, v_rule_fr009, 'FR-009|' || rec.bom_component_id, 'OPEN',
+                    NVL(TO_CHAR(rec.quantity), 'NULL'), 'Quantity requires: ' || v_fr009_op || ' ' || v_fr009_target,
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-009', 'bomId' VALUE p_bom_id, 'organizationCode' VALUE rec.organization_code,
+                        'bomItemNumber' VALUE rec.bom_item_number, 'parentItemNumber' VALUE rec.parent_item_number,
+                        'componentItemNumber' VALUE rec.component_item_number, 'receivedQuantity' VALUE rec.quantity
+                        RETURNING CLOB
+                    ), v_created_at
+                );
+            END LOOP;
+        END IF;
 
-        FOR rec IN (
-            WITH duplicate_groups AS (
-                SELECT c.bom_id,
-                       UPPER(TRIM(c.parent_item_number)) normalized_parent,
-                       UPPER(TRIM(c.component_item_number)) normalized_component,
-                       CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END normalized_operation,
-                       MIN(c.bom_component_id) anchor_component_id,
-                       COUNT(*) duplicate_count,
-                       JSON_ARRAYAGG(
-                           JSON_OBJECT(
-                               'bomComponentId' VALUE c.bom_component_id,
-                               'componentSequenceId' VALUE c.component_sequence_id,
-                               'parentItemNumber' VALUE c.parent_item_number,
-                               'componentItemNumber' VALUE c.component_item_number,
-                               'operationSequence' VALUE c.operation_sequence,
-                               'effectivityStart' VALUE TO_CHAR(c.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
-                               'effectivityEnd' VALUE TO_CHAR(c.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+
+       IF v_rule_fr010 IS NOT NULL THEN
+            FOR rec IN (
+                WITH duplicate_groups AS (
+                    SELECT c.bom_id,
+                           UPPER(TRIM(c.parent_item_number)) normalized_parent,
+                           UPPER(TRIM(c.component_item_number)) normalized_component,
+                           CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END normalized_operation,
+                           MIN(c.bom_component_id) anchor_component_id,
+                           COUNT(*) duplicate_count,
+                           JSON_ARRAYAGG(
+                               JSON_OBJECT(
+                                   'bomComponentId' VALUE c.bom_component_id,
+                                   'componentSequenceId' VALUE c.component_sequence_id,
+                                   'parentItemNumber' VALUE c.parent_item_number,
+                                   'componentItemNumber' VALUE c.component_item_number,
+                                   'operationSequence' VALUE c.operation_sequence,
+                                   'effectivityStart' VALUE TO_CHAR(c.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
+                                   'effectivityEnd' VALUE TO_CHAR(c.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+                                   RETURNING CLOB
+                               )
                                RETURNING CLOB
-                           )
-                           RETURNING CLOB
-                       ) duplicate_rows
-                  FROM bom_components c
-                 WHERE c.bom_id = p_bom_id
-                 GROUP BY c.bom_id,
-                          UPPER(TRIM(c.parent_item_number)),
-                          UPPER(TRIM(c.component_item_number)),
-                          CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END
-                HAVING COUNT(*) > 1
-            )
-            SELECT b.organization_code,
-                   b.item_number bom_item_number,
-                   dg.normalized_parent,
-                   dg.normalized_component,
-                   dg.normalized_operation,
-                   dg.anchor_component_id,
-                   dg.duplicate_count,
-                   dg.duplicate_rows
-              FROM duplicate_groups dg
-              JOIN boms b ON b.bom_id = dg.bom_id
-        ) LOOP
-            v_created_at := utc_now();
-
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.anchor_component_id,
-                v_rule_fr010,
-                'FR-010|' || rec.normalized_parent || '|' || rec.normalized_component || '|' || rec.normalized_operation,
-                'OPEN',
-                'Duplicate row count=' || rec.duplicate_count,
-                'Exactly one relationship for normalized parent/component/operation key',
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-010',
-                    'bomId' VALUE p_bom_id,
-                    'organizationCode' VALUE rec.organization_code,
-                    'bomItemNumber' VALUE rec.bom_item_number,
-                    'normalizedParentItemNumber' VALUE rec.normalized_parent,
-                    'normalizedComponentItemNumber' VALUE rec.normalized_component,
-                    'normalizedOperationSequence' VALUE rec.normalized_operation,
-                    'duplicateRows' VALUE rec.duplicate_rows FORMAT JSON
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
-
-        FOR rec IN (
-            SELECT b.organization_code,
-                   b.item_number bom_item_number,
-                   c.bom_component_id,
-                   c.parent_item_number,
-                   c.component_item_number,
-                   c.item_status
-              FROM boms b
-              JOIN bom_components c ON c.bom_id = b.bom_id
-             WHERE b.bom_id = p_bom_id
-               AND UPPER(TRIM(c.item_status)) IN (SELECT UPPER(TRIM(status_val)) FROM JSON_TABLE(v_config_fr011, '$.invalid_statuses[*]' COLUMNS (status_val VARCHAR2(100) PATH '$')))
-        ) LOOP
-            v_created_at := utc_now();
-
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.bom_component_id,
-                v_rule_fr011,
-                'FR-011|' || rec.bom_component_id,
-                'OPEN',
-                rec.item_status,
-                'Component status not in obsolete configuration for current BOM',
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-011',
-                    'bomId' VALUE p_bom_id,
-                    'organizationCode' VALUE rec.organization_code,
-                    'bomItemNumber' VALUE rec.bom_item_number,
-                    'parentBomState' VALUE 'CURRENT_ACTIVE_OR_RELEASED',
-                    'parentItemNumber' VALUE rec.parent_item_number,
-                    'componentItemNumber' VALUE rec.component_item_number,
-                    'componentItemStatus' VALUE rec.item_status,
-                    'obsoleteStatusConfiguration' VALUE 'OBSOLETE, INACTIVE, END_OF_LIFE'
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
-
-        FOR rec IN (
-            SELECT b.organization_code,
-                   b.item_number bom_item_number,
-                   c.bom_component_id,
-                   c.parent_item_number,
-                   c.component_item_number,
-                   c.effectivity_start,
-                   c.effectivity_end
-              FROM boms b
-              JOIN bom_components c ON c.bom_id = b.bom_id
-             WHERE b.bom_id = p_bom_id
-               AND c.effectivity_start IS NOT NULL AND ((c.effectivity_end IS NOT NULL AND c.effectivity_end < c.effectivity_start) OR (v_fr012_allow_open = 'false' AND c.effectivity_end IS NULL))
-        ) LOOP
-            v_created_at := utc_now();
-
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.bom_component_id,
-                v_rule_fr012,
-                'FR-012|' || rec.bom_component_id,
-                'OPEN',
-                'Start=' || TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM') ||
-                    ', End=' || TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
-                'Effectivity end greater than or equal to start',
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-012',
-                    'bomId' VALUE p_bom_id,
-                    'organizationCode' VALUE rec.organization_code,
-                    'bomItemNumber' VALUE rec.bom_item_number,
-                    'parentItemNumber' VALUE rec.parent_item_number,
-                    'componentItemNumber' VALUE rec.component_item_number,
-                    'effectivityStart' VALUE TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
-                    'effectivityEnd' VALUE TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
-
-        FOR rec IN (
-            SELECT *
-              FROM (
-                    SELECT c.bom_component_id,
-                           c.parent_item_number,
-                           c.component_item_number,
-                           c.component_path,
-                           SYS_CONNECT_BY_PATH(c.parent_item_number, ' -> ') || ' -> ' || c.component_item_number cycle_path,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY c.parent_item_number, c.component_item_number
-                               ORDER BY c.bom_component_id
-                           ) rn
+                           ) duplicate_rows
                       FROM bom_components c
                      WHERE c.bom_id = p_bom_id
-                       AND CONNECT_BY_ISCYCLE = 1
-                     START WITH c.bom_id = p_bom_id
-                            AND c.parent_item_number = v_bom_item
-                   CONNECT BY NOCYCLE PRIOR c.component_item_number = c.parent_item_number AND PRIOR c.bom_id = c.bom_id AND LEVEL <= v_fr013_depth
-              )
-             WHERE rn = 1
-        ) LOOP
-            v_created_at := utc_now();
+                     GROUP BY c.bom_id,
+                              UPPER(TRIM(c.parent_item_number)),
+                              UPPER(TRIM(c.component_item_number)),
+                              CASE WHEN v_fr010_match_op = 'true' THEN NVL(UPPER(TRIM(c.operation_sequence)), '<NULL>') ELSE '<IGNORED>' END
+                    HAVING COUNT(*) > 1
+                )
+                SELECT b.organization_code,
+                       b.item_number bom_item_number,
+                       dg.normalized_parent,
+                       dg.normalized_component,
+                       dg.normalized_operation,
+                       dg.anchor_component_id,
+                       dg.duplicate_count,
+                       dg.duplicate_rows
+                  FROM duplicate_groups dg
+                  JOIN boms b ON b.bom_id = dg.bom_id
+            ) LOOP
+                v_created_at := utc_now();
 
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.bom_component_id,
-                v_rule_fr013,
-                'FR-013|' || rec.bom_component_id,
-                'OPEN',
-                rec.cycle_path,
-                'Acyclic parent-child component graph',
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-013',
-                    'bomId' VALUE p_bom_id,
-                    'bomItemNumber' VALUE v_bom_item,
-                    'cyclePath' VALUE rec.cycle_path,
-                    'parentItemNumber' VALUE rec.parent_item_number,
-                    'componentItemNumber' VALUE rec.component_item_number,
-                    'componentPath' VALUE rec.component_path
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
+                INSERT INTO validation_findings (
+                    run_id,
+                    bom_component_id,
+                    rule_id,
+                    finding_key,
+                    issue_status,
+                    actual_value,
+                    expected_value,
+                    evidence_json,
+                    created_at
+                ) VALUES (
+                    v_run_id,
+                    rec.anchor_component_id,
+                    v_rule_fr010,
+                    'FR-010|' || rec.normalized_parent || '|' || rec.normalized_component || '|' || rec.normalized_operation,
+                    'OPEN',
+                    'Duplicate row count=' || rec.duplicate_count,
+                    'Exactly one relationship for normalized parent/component/operation key',
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-010',
+                        'bomId' VALUE p_bom_id,
+                        'organizationCode' VALUE rec.organization_code,
+                        'bomItemNumber' VALUE rec.bom_item_number,
+                        'normalizedParentItemNumber' VALUE rec.normalized_parent,
+                        'normalizedComponentItemNumber' VALUE rec.normalized_component,
+                        'normalizedOperationSequence' VALUE rec.normalized_operation,
+                        'duplicateRows' VALUE rec.duplicate_rows FORMAT JSON
+                        RETURNING CLOB
+                    ),
+                    v_created_at
+                );
+            END LOOP;
+        END IF;
+   IF v_rule_fr011 IS NOT NULL THEN
+            FOR rec IN (
+                SELECT b.organization_code,
+                       b.item_number bom_item_number,
+                       c.bom_component_id,
+                       c.parent_item_number,
+                       c.component_item_number,
+                       c.item_status
+                  FROM boms b
+                  JOIN bom_components c ON c.bom_id = b.bom_id
+                 WHERE b.bom_id = p_bom_id
+                   AND UPPER(TRIM(c.item_status)) IN (SELECT UPPER(TRIM(status_val)) FROM JSON_TABLE(v_config_fr011, '$.invalid_statuses[*]' COLUMNS (status_val VARCHAR2(100) PATH '$')))
+            ) LOOP
+                v_created_at := utc_now();
 
-        FOR rec IN (
-            SELECT b.organization_code,
-                   b.item_number bom_item_number,
-                   c.bom_component_id,
-                   c.parent_item_number,
-                   c.component_item_number,
-                   c.component_item_class,
-                   c.quantity,
-                   c.anomaly_min_quantity,
-                   c.anomaly_max_quantity,
-                   CASE
-                       WHEN c.anomaly_min_quantity IS NOT NULL AND c.quantity < c.anomaly_min_quantity
-                           THEN 'Quantity is below configured minimum.'
-                       WHEN c.anomaly_max_quantity IS NOT NULL AND c.quantity > c.anomaly_max_quantity
-                           THEN 'Quantity is above configured maximum.'
-                       ELSE 'Quantity violates configured threshold.'
-                   END reason
-              FROM boms b
-              JOIN bom_components c ON c.bom_id = b.bom_id
-             WHERE b.bom_id = p_bom_id
-               AND c.quantity > 0
-               AND ((v_fr014_use_comp = 'true' AND c.anomaly_min_quantity IS NOT NULL AND c.quantity < c.anomaly_min_quantity) OR (v_fr014_use_comp = 'true' AND c.anomaly_max_quantity IS NOT NULL AND c.quantity > c.anomaly_max_quantity) OR ((v_fr014_use_comp = 'false' OR c.anomaly_min_quantity IS NULL) AND v_fr014_min IS NOT NULL AND c.quantity < v_fr014_min) OR ((v_fr014_use_comp = 'false' OR c.anomaly_max_quantity IS NULL) AND v_fr014_max IS NOT NULL AND c.quantity > v_fr014_max))
-        ) LOOP
-            v_created_at := utc_now();
+                INSERT INTO validation_findings (
+                    run_id, bom_component_id, rule_id, finding_key, issue_status, actual_value, expected_value, evidence_json, created_at
+                ) VALUES (
+                    v_run_id, rec.bom_component_id, v_rule_fr011, 'FR-011|' || rec.bom_component_id, 'OPEN',
+                    rec.item_status, 'Component status not in obsolete configuration for current BOM',
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-011', 'bomId' VALUE p_bom_id, 'organizationCode' VALUE rec.organization_code,
+                        'bomItemNumber' VALUE rec.bom_item_number, 'parentBomState' VALUE 'CURRENT_ACTIVE_OR_RELEASED',
+                        'parentItemNumber' VALUE rec.parent_item_number, 'componentItemNumber' VALUE rec.component_item_number,
+                        'componentItemStatus' VALUE rec.item_status, 'obsoleteStatusConfiguration' VALUE JSON_QUERY(v_config_fr011, '$.invalid_statuses')
+                        RETURNING CLOB
+                    ), v_created_at
+                );
+            END LOOP;
+        END IF;
 
-            INSERT INTO validation_findings (
-                run_id,
-                bom_component_id,
-                rule_id,
-                finding_key,
-                issue_status,
-                actual_value,
-                expected_value,
-                evidence_json,
-                created_at
-            ) VALUES (
-                v_run_id,
-                rec.bom_component_id,
-                v_rule_fr014,
-                'FR-014|' || rec.bom_component_id,
-                'OPEN',
-                TO_CHAR(rec.quantity),
-                'Quantity between ' || NVL(TO_CHAR(rec.anomaly_min_quantity), '-infinity') ||
-                    ' and ' || NVL(TO_CHAR(rec.anomaly_max_quantity), '+infinity'),
-                JSON_OBJECT(
-                    'ruleCode' VALUE 'FR-014',
-                    'bomId' VALUE p_bom_id,
-                    'organizationCode' VALUE rec.organization_code,
-                    'bomItemNumber' VALUE rec.bom_item_number,
-                    'parentItemNumber' VALUE rec.parent_item_number,
-                    'componentItemNumber' VALUE rec.component_item_number,
-                    'componentItemClass' VALUE rec.component_item_class,
-                    'observedQuantity' VALUE rec.quantity,
-                    'anomalyMinQuantity' VALUE rec.anomaly_min_quantity,
-                    'anomalyMaxQuantity' VALUE rec.anomaly_max_quantity,
-                    'configurationSource' VALUE 'BOM_COMPONENTS item-class prototype thresholds',
-                    'reason' VALUE rec.reason
-                    RETURNING CLOB
-                ),
-                v_created_at
-            );
-        END LOOP;
 
+       IF v_rule_fr012 IS NOT NULL THEN
+            FOR rec IN (
+                SELECT b.organization_code,
+                       b.item_number bom_item_number,
+                       c.bom_component_id,
+                       c.parent_item_number,
+                       c.component_item_number,
+                       c.effectivity_start,
+                       c.effectivity_end
+                  FROM boms b
+                  JOIN bom_components c ON c.bom_id = b.bom_id
+                 WHERE b.bom_id = p_bom_id
+                   AND c.effectivity_start IS NOT NULL AND ((c.effectivity_end IS NOT NULL AND c.effectivity_end < c.effectivity_start) OR (v_fr012_allow_open = 'false' AND c.effectivity_end IS NULL))
+            ) LOOP
+                v_created_at := utc_now();
+
+                INSERT INTO validation_findings (
+                    run_id, bom_component_id, rule_id, finding_key, issue_status, actual_value, expected_value, evidence_json, created_at
+                ) VALUES (
+                    v_run_id, rec.bom_component_id, v_rule_fr012, 'FR-012|' || rec.bom_component_id, 'OPEN',
+                    'Start=' || TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM') ||
+                        ', End=' || TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
+                    'Effectivity end greater than or equal to start',
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-012', 'bomId' VALUE p_bom_id, 'organizationCode' VALUE rec.organization_code,
+                        'bomItemNumber' VALUE rec.bom_item_number, 'parentItemNumber' VALUE rec.parent_item_number,
+                        'componentItemNumber' VALUE rec.component_item_number, 'effectivityStart' VALUE TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
+                        'effectivityEnd' VALUE TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+                        RETURNING CLOB
+                    ), v_created_at
+                );
+            END LOOP;
+        END IF;
+
+        IF v_rule_fr013 IS NOT NULL THEN
+            FOR rec IN (
+                SELECT *
+                  FROM (
+                        SELECT c.bom_component_id,
+                               c.parent_item_number,
+                               c.component_item_number,
+                               c.component_path,
+                               SYS_CONNECT_BY_PATH(c.parent_item_number, ' -> ') || ' -> ' || c.component_item_number cycle_path,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY c.parent_item_number, c.component_item_number
+                                   ORDER BY c.bom_component_id
+                               ) rn
+                          FROM bom_components c
+                         WHERE c.bom_id = p_bom_id
+                           AND CONNECT_BY_ISCYCLE = 1
+                         START WITH c.bom_id = p_bom_id
+                                AND c.parent_item_number = v_bom_item
+                       CONNECT BY NOCYCLE PRIOR c.component_item_number = c.parent_item_number AND PRIOR c.bom_id = c.bom_id AND LEVEL <= v_fr013_depth
+                  )
+                 WHERE rn = 1
+            ) LOOP
+                v_created_at := utc_now();
+
+                INSERT INTO validation_findings (
+                    run_id, bom_component_id, rule_id, finding_key, issue_status, actual_value, expected_value, evidence_json, created_at
+                ) VALUES (
+                    v_run_id, rec.bom_component_id, v_rule_fr013, 'FR-013|' || rec.bom_component_id, 'OPEN',
+                    rec.cycle_path, 'Acyclic parent-child component graph',
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-013', 'bomId' VALUE p_bom_id, 'bomItemNumber' VALUE v_bom_item,
+                        'cyclePath' VALUE rec.cycle_path, 'parentItemNumber' VALUE rec.parent_item_number,
+                        'componentItemNumber' VALUE rec.component_item_number, 'componentPath' VALUE rec.component_path
+                        RETURNING CLOB
+                    ), v_created_at
+                );
+            END LOOP;
+        END IF;
+
+     IF v_rule_fr014 IS NOT NULL THEN
+            FOR rec IN (
+                SELECT b.organization_code,
+                       b.item_number bom_item_number,
+                       c.bom_component_id,
+                       c.parent_item_number,
+                       c.component_item_number,
+                       c.component_item_class,
+                       c.quantity,
+                       c.anomaly_min_quantity,
+                       c.anomaly_max_quantity,
+                       CASE
+                           WHEN c.anomaly_min_quantity IS NOT NULL AND c.quantity < c.anomaly_min_quantity
+                               THEN 'Quantity is below configured minimum.'
+                           WHEN c.anomaly_max_quantity IS NOT NULL AND c.quantity > c.anomaly_max_quantity
+                               THEN 'Quantity is above configured maximum.'
+                           ELSE 'Quantity violates configured threshold.'
+                       END reason
+                  FROM boms b
+                  JOIN bom_components c ON c.bom_id = b.bom_id
+                 WHERE b.bom_id = p_bom_id
+                   AND c.quantity > 0
+                   AND ((v_fr014_use_comp = 'true' AND c.anomaly_min_quantity IS NOT NULL AND c.quantity < c.anomaly_min_quantity) OR (v_fr014_use_comp = 'true' AND c.anomaly_max_quantity IS NOT NULL AND c.quantity > c.anomaly_max_quantity) OR ((v_fr014_use_comp = 'false' OR c.anomaly_min_quantity IS NULL) AND v_fr014_min IS NOT NULL AND c.quantity < v_fr014_min) OR ((v_fr014_use_comp = 'false' OR c.anomaly_max_quantity IS NULL) AND v_fr014_max IS NOT NULL AND c.quantity > v_fr014_max))
+            ) LOOP
+                v_created_at := utc_now();
+
+                INSERT INTO validation_findings (
+                    run_id, bom_component_id, rule_id, finding_key, issue_status, actual_value, expected_value, evidence_json, created_at
+                ) VALUES (
+                    v_run_id, rec.bom_component_id, v_rule_fr014, 'FR-014|' || rec.bom_component_id, 'OPEN',
+                    TO_CHAR(rec.quantity),
+                    'Quantity between ' || NVL(TO_CHAR(rec.anomaly_min_quantity), NVL(TO_CHAR(v_fr014_min), '-infinity')) ||
+                        ' and ' || NVL(TO_CHAR(rec.anomaly_max_quantity), NVL(TO_CHAR(v_fr014_max), '+infinity')),
+                    JSON_OBJECT(
+                        'ruleCode' VALUE 'FR-014', 'bomId' VALUE p_bom_id, 'organizationCode' VALUE rec.organization_code,
+                        'bomItemNumber' VALUE rec.bom_item_number, 'parentItemNumber' VALUE rec.parent_item_number,
+                        'componentItemNumber' VALUE rec.component_item_number, 'componentItemClass' VALUE rec.component_item_class,
+                        'observedQuantity' VALUE rec.quantity, 'anomalyMinQuantity' VALUE rec.anomaly_min_quantity,
+                        'anomalyMaxQuantity' VALUE rec.anomaly_max_quantity, 'configurationSource' VALUE 'BOM_COMPONENTS item-class prototype thresholds',
+                        'reason' VALUE rec.reason RETURNING CLOB
+                    ), v_created_at
+                );
+            END LOOP;
+        END IF;
+           
         eval_custom_rules(p_bom_id, v_run_id);
 
         SELECT COUNT(*)
