@@ -720,9 +720,14 @@ BEGIN
     UPDATE validation_findings SET issue_status = v_new_status WHERE finding_id = v_finding_id;
     INSERT INTO finding_reviews (finding_id, old_status, new_status, review_comment, reviewed_by, reviewed_at) VALUES (v_finding_id, v_old_status, v_new_status, v_comment, v_reviewed_by, SYSTIMESTAMP AT TIME ZONE 'UTC');
 
-    SELECT GREATEST(0, 100 - NVL(SUM(CASE vr.severity WHEN 'CRITICAL' THEN 25 WHEN 'HIGH' THEN 10 WHEN 'WARNING' THEN 5 ELSE 0 END), 0))
-      INTO v_health_score FROM validation_findings vf JOIN validation_rules vr ON vr.rule_id = vf.rule_id JOIN bom_runs br ON br.run_id = vf.run_id WHERE br.bom_id = v_bom_id AND vf.issue_status IN ('OPEN', 'REVIEWED');
-
+   SELECT GREATEST(0, 100 - NVL(SUM(CASE vr.severity WHEN 'CRITICAL' THEN 25 WHEN 'HIGH' THEN 10 WHEN 'WARNING' THEN 5 ELSE 0 END), 0))
+  INTO v_health_score
+  FROM validation_findings vf
+  JOIN validation_rules vr ON vr.rule_id = vf.rule_id
+  JOIN bom_runs br ON br.run_id = vf.run_id
+ WHERE br.bom_id = v_bom_id
+   AND vf.issue_status = 'OPEN';
+   
     UPDATE boms SET health_score = v_health_score, status_label = CASE WHEN v_health_score = 100 THEN 'HEALTHY' ELSE 'RISKY' END WHERE bom_id = v_bom_id;
     COMMIT;
     :status_code := 200;
@@ -890,7 +895,7 @@ BEGIN
     v_corr_id := 'AI-FINDING-' || TO_CHAR(v_now, 'YYYYMMDDHH24MISSFF3') || '-' || RAWTOHEX(SYS_GUID());
 
     INSERT INTO bom_runs (bom_id, run_kind, trigger_type, status, source_mode, correlation_id, requested_by, started_at, completed_at, input_count, finding_count)
-    VALUES (v_bom_id, 'ADVISORY_AI', 'USER_AI', 'COMPLETED', 'N/A', v_corr_id, v_requested_by, v_now, v_now, 1, 1) RETURNING run_id INTO v_run_id;
+    VALUES (v_bom_id, 'ADVISORY_AI', 'USER_AI', 'COMPLETED', 'N/A', v_corr_id, v_requested_by, v_now, v_now, 1, 0) RETURNING run_id INTO v_run_id;
 
     INSERT INTO ai_advisories (run_id, finding_id, advisory_scope, ai_status, ai_summary, ai_suggested_action, ai_provider, requested_by, generated_at)
     VALUES (v_run_id, v_finding_id, 'FINDING', 'COMPLETED', v_ai_summary, v_ai_suggested, v_ai_provider, v_requested_by, v_now) RETURNING advisory_id INTO v_advisory_id;
@@ -1348,6 +1353,7 @@ SELECT vfh.finding_id, vfh.run_id, vr.rule_code, vr.rule_name, vr.severity,
         #'
 );
 
+ORDS.DEFINE_TEMPLATE(p_module_name => 'bom_api', p_pattern => 'boms/:bom_id/audit-trail');
 ORDS.DEFINE_HANDLER(
     p_module_name    => 'bom_api',
     p_pattern        => 'boms/:bom_id/audit-trail',
