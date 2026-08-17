@@ -355,7 +355,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
         v_rule_fr013      validation_rules.rule_id%TYPE;
         v_rule_fr014      validation_rules.rule_id%TYPE;
         v_config_fr008 VARCHAR2(4000); v_config_fr009 VARCHAR2(4000); v_config_fr010 VARCHAR2(4000); v_config_fr011 VARCHAR2(4000); v_config_fr012 VARCHAR2(4000); v_config_fr013 VARCHAR2(4000); v_config_fr014 VARCHAR2(4000);
-        v_fr008_allow_ws VARCHAR2(10); v_fr009_target NUMBER; v_fr009_op VARCHAR2(5); v_fr009_allow_null VARCHAR2(10); v_fr010_match_op VARCHAR2(10);v_fr012_allow_open VARCHAR2(10); v_fr013_depth NUMBER; v_fr014_use_comp VARCHAR2(10); v_fr014_min NUMBER; v_fr014_max NUMBER;
+        v_fr008_allow_ws VARCHAR2(10); v_fr009_target NUMBER; v_fr009_op VARCHAR2(5); v_fr009_allow_null VARCHAR2(10); v_fr010_match_op VARCHAR2(10); v_fr012_allow_open VARCHAR2(10); v_fr013_depth NUMBER; v_fr014_use_comp VARCHAR2(10); v_fr014_min NUMBER; v_fr014_max NUMBER;
         v_created_at      TIMESTAMP(6) WITH TIME ZONE;
         v_completed_at    TIMESTAMP(6) WITH TIME ZONE;
         v_err_msg         VARCHAR2(4000);
@@ -393,7 +393,7 @@ CREATE OR REPLACE PACKAGE BODY bom_validation_pkg AS
 
         v_correlation_id := 'VAL-' || TO_CHAR(utc_now(), 'YYYYMMDDHH24MISSFF3') || '-' ||
                             RAWTOHEX(SYS_GUID());
-INSERT INTO bom_runs (
+        INSERT INTO bom_runs (
             bom_id,
             run_kind,
             trigger_type,
@@ -447,7 +447,7 @@ INSERT INTO bom_runs (
         log_event(v_correlation_id, v_run_id, NULL, 'VALIDATION_START', 'RUNNING', 'INFO',
                   'Started deterministic validation for BOM_ID=' || p_bom_id || ', ITEM_NUMBER=' || v_bom_item || '.');
 
-IF v_rule_fr008 IS NOT NULL THEN
+        IF v_rule_fr008 IS NOT NULL THEN
             FOR rec IN (
                 SELECT b.organization_code,
                        b.item_number bom_item_number,
@@ -477,7 +477,7 @@ IF v_rule_fr008 IS NOT NULL THEN
             END LOOP;
         END IF;
 
-       IF v_rule_fr009 IS NOT NULL THEN
+        IF v_rule_fr009 IS NOT NULL THEN
             FOR rec IN (
                 SELECT b.organization_code,
                        b.item_number bom_item_number,
@@ -516,8 +516,7 @@ IF v_rule_fr008 IS NOT NULL THEN
             END LOOP;
         END IF;
 
-
-       IF v_rule_fr010 IS NOT NULL THEN
+        IF v_rule_fr010 IS NOT NULL THEN
             FOR rec IN (
                 WITH duplicate_groups AS (
                     SELECT c.bom_id,
@@ -593,7 +592,8 @@ IF v_rule_fr008 IS NOT NULL THEN
                 );
             END LOOP;
         END IF;
-   IF v_rule_fr011 IS NOT NULL THEN
+
+        IF v_rule_fr011 IS NOT NULL THEN
             FOR rec IN (
                 SELECT b.organization_code,
                        b.item_number bom_item_number,
@@ -624,8 +624,7 @@ IF v_rule_fr008 IS NOT NULL THEN
             END LOOP;
         END IF;
 
-
-       IF v_rule_fr012 IS NOT NULL THEN
+        IF v_rule_fr012 IS NOT NULL THEN
             FOR rec IN (
                 SELECT b.organization_code,
                        b.item_number bom_item_number,
@@ -633,11 +632,23 @@ IF v_rule_fr008 IS NOT NULL THEN
                        c.parent_item_number,
                        c.component_item_number,
                        c.effectivity_start,
-                       c.effectivity_end
+                       c.effectivity_end,
+                       CASE 
+                           WHEN c.effectivity_end IS NOT NULL AND c.effectivity_end < c.effectivity_start 
+                               THEN 'End date is prior to start date'
+                           WHEN c.effectivity_end IS NOT NULL AND c.effectivity_end <= (SYSTIMESTAMP AT TIME ZONE 'UTC')
+                               THEN 'Component effectivity has expired (end-dated/disabled)'
+                           ELSE 'Missing mandatory effectivity end date'
+                       END AS violation_reason
                   FROM boms b
                   JOIN bom_components c ON c.bom_id = b.bom_id
                  WHERE b.bom_id = p_bom_id
-                   AND c.effectivity_start IS NOT NULL AND ((c.effectivity_end IS NOT NULL AND c.effectivity_end < c.effectivity_start) OR (v_fr012_allow_open = 'false' AND c.effectivity_end IS NULL))
+                   AND c.effectivity_start IS NOT NULL 
+                   AND (
+                       (c.effectivity_end IS NOT NULL AND c.effectivity_end < c.effectivity_start)
+                       OR (c.effectivity_end IS NOT NULL AND c.effectivity_end <= (SYSTIMESTAMP AT TIME ZONE 'UTC'))
+                       OR (v_fr012_allow_open = 'false' AND c.effectivity_end IS NULL)
+                   )
             ) LOOP
                 v_created_at := utc_now();
 
@@ -647,12 +658,13 @@ IF v_rule_fr008 IS NOT NULL THEN
                     v_run_id, rec.bom_component_id, v_rule_fr012, 'FR-012|' || rec.bom_component_id, 'OPEN',
                     'Start=' || TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM') ||
                         ', End=' || TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
-                    'Effectivity end greater than or equal to start',
+                    'Active effectivity window (Effectivity end > current time and >= start)',
                     JSON_OBJECT(
                         'ruleCode' VALUE 'FR-012', 'bomId' VALUE p_bom_id, 'organizationCode' VALUE rec.organization_code,
                         'bomItemNumber' VALUE rec.bom_item_number, 'parentItemNumber' VALUE rec.parent_item_number,
                         'componentItemNumber' VALUE rec.component_item_number, 'effectivityStart' VALUE TO_CHAR(rec.effectivity_start, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
-                        'effectivityEnd' VALUE TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM')
+                        'effectivityEnd' VALUE TO_CHAR(rec.effectivity_end, 'YYYY-MM-DD"T"HH24:MI:SSTZH:TZM'),
+                        'violationReason' VALUE rec.violation_reason
                         RETURNING CLOB
                     ), v_created_at
                 );
@@ -698,7 +710,7 @@ IF v_rule_fr008 IS NOT NULL THEN
             END LOOP;
         END IF;
 
-     IF v_rule_fr014 IS NOT NULL THEN
+        IF v_rule_fr014 IS NOT NULL THEN
             FOR rec IN (
                 SELECT b.organization_code,
                        b.item_number bom_item_number,
